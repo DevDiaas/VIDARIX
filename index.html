@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR" class="dark scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>VIDARIX — Descubra o que assistir hoje</title>
+    <meta name="description" content="Descubra filmes e séries, encontre onde assistir e deixe a roleta da VIDARIX escolher sua próxima história no Brasil." />
+    <meta name="theme-color" content="#05060B" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vidarix.com.br/" />
+    <meta property="og:title" content="VIDARIX — Descubra o que assistir hoje" />
+    <meta property="og:description" content="Descubra filmes e séries, encontre onde assistir e deixe a roleta da VIDARIX escolher sua próxima história." />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://vidarix.com.br/" />
+    <meta property="twitter:title" content="VIDARIX — Descubra o que assistir hoje" />
+    <meta property="twitter:description" content="Descubra filmes e séries, encontre onde assistir e deixe a roleta da VIDARIX escolher sua próxima história." />
+    <meta property="twitter:image" content="/og-image.png" />
+
+    <!-- Favicon & Touch Icons -->
+    <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
+    <link rel="shortcut icon" type="image/png" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Google Fonts Inter & Plus Jakarta Sans / Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://vidarix.com.br/" />
+  </head>
+  <body class="bg-[#05060B] text-[#F7F7FA] font-sans antialiased selection:bg-[#8B5CF6]/30 selection:text-[#FFFFFF] overflow-x-hidden min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
+

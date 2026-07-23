@@ -1,0 +1,60 @@
+# Dependências
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+
+# Build do Vite
+dist/
+build/
+.vite/
+.cache/
+*.tsbuildinfo
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+supabase/functions/.env
+supabase/functions/.env.*
+
+# Bancos e backups locais
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.sql.gz
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Deploy
+.vercel/
+.netlify/
+
+# Temporários
+*.tmp
+*.temp
+*.bak

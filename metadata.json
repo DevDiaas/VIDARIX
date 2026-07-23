@@ -1,0 +1,6 @@
+{
+  "name": "VIDARIX",
+  "description": "Plataforma brasileira para descobrir filmes, séries e decidir o que assistir através de uma roleta cinematográfica inteligente.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

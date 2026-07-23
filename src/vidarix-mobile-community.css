@@ -1,0 +1,658 @@
+/* VIDARIX — mobile navigation and community responsive refinement */
+
+.vidarix-mobile-navigation {
+  display: none;
+}
+
+/* Community desktop refinement */
+.social-page {
+  width: min(1440px, calc(100% - 48px));
+  padding: 104px 0 64px;
+}
+
+.social-hero {
+  min-height: 210px;
+  padding: clamp(30px, 4vw, 50px);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 84% 14%, rgba(236, 72, 153, .22), transparent 34%),
+    radial-gradient(circle at 14% 0%, rgba(124, 58, 237, .22), transparent 31%),
+    linear-gradient(145deg, #121521, #090b13 64%, #0d0f18);
+}
+
+.social-hero h1 {
+  max-width: 920px;
+  font-size: clamp(2.8rem, 4.4vw, 4.9rem);
+  line-height: .98;
+}
+
+.social-hero p {
+  max-width: 820px;
+  margin-top: 14px;
+  font-size: clamp(.86rem, 1vw, 1rem);
+}
+
+.social-tabs {
+  top: 76px;
+  margin: 18px 0;
+  padding: 7px;
+  border-radius: 16px;
+  scrollbar-width: none;
+}
+
+.social-tabs::-webkit-scrollbar,
+.social-chat-list::-webkit-scrollbar {
+  display: none;
+}
+
+.social-tabs button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0 15px;
+}
+
+.social-page__content {
+  min-height: 0;
+}
+
+.social-layout-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
+  gap: 18px;
+}
+
+.social-block,
+.social-side-card,
+.social-feed-card,
+.social-person-card,
+.social-chat-layout,
+.social-recommendation-card {
+  border-color: rgba(255, 255, 255, .085);
+}
+
+.social-block,
+.social-side-card {
+  padding: 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .018), transparent 34%),
+    #10131d;
+}
+
+.social-block + .social-block {
+  margin-top: 18px;
+}
+
+.social-person-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.social-person-card {
+  min-width: 0;
+  min-height: 286px;
+  padding: 20px 18px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, .08), transparent 38%),
+    #0d1018;
+}
+
+.social-person-card > p {
+  width: 100%;
+  min-height: 44px;
+  margin: 10px 0 4px;
+}
+
+.social-person-card > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.social-person-card > div:last-child button {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.social-side-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.social-side-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, .45), transparent);
+}
+
+.social-chat-layout {
+  height: clamp(560px, 67vh, 720px);
+  min-height: 560px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  border-radius: 22px;
+  background: #0d1018;
+}
+
+.social-chat-sidebar {
+  min-width: 0;
+  padding: 18px;
+  background: #0f121c;
+}
+
+.social-chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.social-chat-panel__header {
+  flex: 0 0 auto;
+}
+
+.social-group-watchlist {
+  flex: 0 0 auto;
+}
+
+.social-message-stream {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px;
+  background:
+    radial-gradient(circle at 85% 10%, rgba(139, 92, 246, .05), transparent 30%),
+    #0d1018;
+}
+
+.social-chat-composer {
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  padding: 12px 16px;
+}
+
+.social-chat-composer button {
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  align-self: center;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  box-shadow: 0 8px 22px rgba(124, 58, 237, .28);
+}
+
+.social-message {
+  max-width: min(76%, 680px);
+}
+
+.social-message > div:last-child {
+  min-width: 0;
+}
+
+.social-recommendation-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.social-recommendation-columns > .social-block {
+  min-height: 300px;
+}
+
+.social-empty-state {
+  min-height: 220px;
+}
+
+.social-empty-state.compact {
+  min-height: 180px;
+}
+
+.social-recommendation-actions button {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 1180px) {
+  .social-page {
+    width: min(100% - 28px, 1440px);
+  }
+
+  .social-layout-grid,
+  .social-recommendation-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .social-side-column {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .social-chat-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 920px) {
+  html {
+    scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .vidarix-app-shell {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+
+  .vidarix-header__inner {
+    min-height: 68px;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    padding-inline: 14px !important;
+  }
+
+  .vidarix-header__brand {
+    width: clamp(132px, 38vw, 160px) !important;
+  }
+
+  .vidarix-header__nav,
+  .vidarix-header__search,
+  .vidarix-header__menu,
+  .vidarix-mobile-menu {
+    display: none !important;
+  }
+
+  .vidarix-header__icon-button,
+  .vidarix-header__profile {
+    display: grid !important;
+  }
+
+  .vidarix-header__actions {
+    gap: 4px;
+  }
+
+  .vidarix-header__icon-button,
+  .vidarix-header__profile {
+    width: 38px;
+    height: 38px;
+  }
+
+  .vidarix-mobile-navigation {
+    position: fixed;
+    z-index: 95;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+    padding: 9px 10px max(8px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(241, 45, 103, .34);
+    background:
+      linear-gradient(180deg, rgba(30, 8, 24, .97), rgba(8, 8, 14, .99));
+    box-shadow: 0 -18px 46px rgba(0, 0, 0, .58);
+    backdrop-filter: blur(20px) saturate(1.15);
+    -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  }
+
+  .vidarix-mobile-navigation__inner {
+    position: relative;
+    width: min(100%, 560px);
+    min-height: 62px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: end;
+    gap: 2px;
+  }
+
+  .vidarix-mobile-navigation button {
+    min-width: 0;
+    min-height: 58px;
+    padding: 5px 2px 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    color: #a9adbb;
+    background: transparent !important;
+    border: 0;
+    border-radius: 12px;
+    box-shadow: none !important;
+    font-size: clamp(.57rem, 2.4vw, .68rem);
+    font-weight: 750;
+    line-height: 1;
+  }
+
+  .vidarix-mobile-navigation button > svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .vidarix-mobile-navigation button.is-active {
+    color: #c67cff;
+  }
+
+  .vidarix-mobile-navigation__roulette {
+    position: relative;
+    transform: translateY(-10px);
+    overflow: visible;
+  }
+
+  .vidarix-mobile-navigation__roulette-icon {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border: 3px solid #07080d;
+    border-radius: 50%;
+    color: #f24aa2;
+    background: #15101d;
+    box-shadow:
+      0 0 0 2px #ec4899,
+      0 0 0 5px rgba(7, 8, 13, .96),
+      0 10px 30px rgba(236, 72, 153, .35);
+  }
+
+  .vidarix-mobile-navigation__roulette-icon svg {
+    width: 29px;
+    height: 29px;
+  }
+
+  .vidarix-mobile-navigation__roulette.is-active .vidarix-mobile-navigation__roulette-icon {
+    color: #fff;
+    background: linear-gradient(145deg, rgba(124, 58, 237, .42), rgba(236, 72, 153, .24));
+  }
+
+  .social-page {
+    width: min(100% - 20px, 1440px);
+    padding: 86px 0 26px;
+  }
+
+  .social-hero {
+    min-height: 190px;
+    padding: 26px 22px;
+    align-items: flex-start;
+    border-radius: 20px;
+  }
+
+  .social-hero h1 {
+    font-size: clamp(2.2rem, 8vw, 3.6rem);
+  }
+
+  .social-hero p {
+    max-width: 100%;
+    line-height: 1.55;
+  }
+
+  .social-hero__avatars {
+    align-self: flex-end;
+  }
+
+  .social-tabs {
+    top: 68px;
+    margin: 12px 0 14px;
+    padding: 6px;
+    border-radius: 14px;
+  }
+
+  .social-tabs button {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: .72rem;
+  }
+
+  .social-side-column,
+  .social-person-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .social-chat-layout {
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px;
+  }
+
+  .social-chat-sidebar {
+    flex: 0 0 auto;
+    padding: 15px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .social-chat-list {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .social-chat-list > button {
+    min-width: min(250px, 78vw);
+    flex: 0 0 auto;
+    background: rgba(255, 255, 255, .015);
+  }
+
+  .social-chat-panel {
+    min-height: min(620px, calc(100dvh - 150px));
+  }
+
+  .social-message-stream {
+    min-height: 360px;
+  }
+
+  .social-group-watchlist {
+    align-items: flex-start;
+  }
+
+  .social-recommendation-columns > .social-block {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .vidarix-app-shell {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .vidarix-header__inner {
+    padding-inline: 10px !important;
+  }
+
+  .vidarix-header__brand {
+    width: 134px !important;
+  }
+
+  .social-page {
+    width: calc(100% - 12px);
+    padding-top: 80px;
+  }
+
+  .social-hero {
+    min-height: auto;
+    padding: 22px 17px;
+    border-radius: 17px;
+  }
+
+  .social-hero h1 {
+    margin-top: 10px;
+    font-size: clamp(2rem, 11vw, 2.75rem);
+    line-height: 1;
+  }
+
+  .social-hero p {
+    margin-top: 12px;
+    font-size: .8rem;
+  }
+
+  .social-hero__avatars {
+    margin-top: 14px;
+    align-self: flex-start;
+    transform: translateX(8px);
+  }
+
+  .social-hero__avatars > span,
+  .social-hero__avatars > * {
+    width: 38px;
+    height: 38px;
+  }
+
+  .social-tabs {
+    top: 67px;
+    margin-inline: -2px;
+  }
+
+  .social-tabs button {
+    min-height: 39px;
+    padding: 0 10px;
+    font-size: .68rem;
+  }
+
+  .social-block,
+  .social-side-card,
+  .title-community {
+    padding: 15px;
+    border-radius: 16px;
+  }
+
+  .social-section-heading {
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .social-section-heading h2 {
+    font-size: 1.28rem;
+    line-height: 1.1;
+  }
+
+  .social-person-card {
+    min-height: 0;
+    padding: 18px 15px;
+  }
+
+  .social-person-card > div:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  .social-feed-card,
+  .social-recommendation-card {
+    padding: 14px;
+    border-radius: 15px;
+  }
+
+  .social-feed-card {
+    align-items: flex-start;
+  }
+
+  .social-feed-card header,
+  .social-recommendation-card header,
+  .social-message header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .social-media-mini {
+    grid-template-columns: 42px minmax(0, 1fr) 16px;
+    gap: 9px;
+  }
+
+  .social-media-mini img {
+    width: 42px;
+    height: 58px;
+  }
+
+  .social-chat-panel {
+    min-height: 560px;
+  }
+
+  .social-chat-panel__header {
+    min-height: 70px;
+    padding: 13px 14px;
+  }
+
+  .social-chat-panel__header > div {
+    min-width: 0;
+  }
+
+  .social-chat-panel__header button {
+    flex-shrink: 0;
+    padding-inline: 10px;
+  }
+
+  .social-group-watchlist {
+    padding: 11px 14px;
+    flex-direction: column;
+  }
+
+  .social-message-stream {
+    min-height: 340px;
+    padding: 14px;
+  }
+
+  .social-message {
+    max-width: 94%;
+  }
+
+  .social-chat-composer {
+    position: sticky;
+    bottom: 0;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    padding: 10px;
+  }
+
+  .social-chat-composer input {
+    height: 44px;
+    padding-inline: 11px;
+  }
+
+  .social-chat-composer button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .social-recommendation-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .social-empty-state,
+  .social-empty-state.compact {
+    min-height: 160px;
+    padding: 22px 12px;
+  }
+
+  .social-modal-backdrop {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
+  .social-modal {
+    width: 100%;
+    max-height: calc(100dvh - 10px);
+    padding: 22px 16px;
+    border-radius: 22px 22px 12px 12px;
+  }
+
+  footer {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .vidarix-mobile-navigation {
+    padding-inline: 4px;
+  }
+
+  .vidarix-mobile-navigation button {
+    font-size: .54rem;
+  }
+
+  .vidarix-mobile-navigation__roulette-icon {
+    width: 54px;
+    height: 54px;
+  }
+
+  .social-tabs button {
+    padding-inline: 9px;
+  }
+}

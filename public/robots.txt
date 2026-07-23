@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://vidarix.com.br/sitemap.xml
