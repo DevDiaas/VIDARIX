@@ -58,3 +58,6 @@ Desktop.ini
 *.tmp
 *.temp
 *.bak
+# Arquivos de ferramentas locais
+.aistudio/
+assets/.aistudio/
