@@ -1,236 +1,277 @@
-# VIDARIX — Descubra, escolha e compartilhe o que assistir
+# VIDARIX
 
-A **VIDARIX** é uma plataforma brasileira de descoberta de filmes e séries criada para resolver um problema simples e recorrente: passar mais tempo escolhendo o que assistir do que aproveitando o conteúdo.
+<p align="center">
+  <img src="./assets/vidarix-preview.png" alt="VIDARIX em notebook e celular" width="100%">
+</p>
 
-O projeto reúne catálogo, disponibilidade nos streamings brasileiros, listas pessoais, recomendações, roleta cinematográfica e uma camada social voltada para amizades, grupos e conversas sobre cada título.
+<p align="center">
+  <strong>Descubra, escolha e compartilhe o que assistir.</strong>
+</p>
 
----
+<p align="center">
+  Plataforma brasileira de descoberta de filmes e séries com catálogo, roleta personalizada, listas, avaliações e recursos sociais em tempo real.
+</p>
 
-## Por que a VIDARIX foi criada
-
-A quantidade de filmes, séries e serviços de streaming cresceu, mas a experiência de escolha continua fragmentada. Normalmente o usuário precisa alternar entre vários aplicativos, pesquisar onde o título está disponível, comparar avaliações, consultar amigos e ainda decidir o que combina com o momento.
-
-A VIDARIX foi criada para centralizar essa jornada em uma experiência única, visual e personalizada. A proposta não é reproduzir conteúdo, mas ajudar o usuário a **descobrir, decidir, organizar e compartilhar** o que pretende assistir.
-
----
-
-## O problema
-
-A experiência tradicional de descoberta apresenta alguns obstáculos:
-
-- excesso de opções e dificuldade de decisão;
-- catálogos separados em diferentes plataformas;
-- falta de uma visão clara sobre onde assistir no Brasil;
-- listas pessoais espalhadas entre aplicativos;
-- recomendações genéricas, sem considerar preferências e streamings assinados;
-- conversas sobre filmes e séries desconectadas do próprio título;
-- risco de spoilers em comentários e grupos;
-- dificuldade para combinar uma sessão com amigos.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/Supabase-Backend-3FCF8E?logo=supabase&logoColor=white" alt="Supabase">
+  <img src="https://img.shields.io/badge/Vercel-Deploy-000000?logo=vercel&logoColor=white" alt="Vercel">
+</p>
 
 ---
 
-## A solução
+## Sobre o projeto
 
-A VIDARIX concentra as principais etapas da descoberta audiovisual:
+A **VIDARIX** foi criada para resolver um problema comum: gastar mais tempo escolhendo o que assistir do que aproveitando o conteúdo.
 
-1. apresenta títulos e tendências usando dados do TMDB;
-2. mostra provedores disponíveis no Brasil;
-3. permite salvar, avaliar e marcar títulos como assistidos;
-4. utiliza preferências pessoais na descoberta;
-5. oferece uma roleta para reduzir a indecisão;
-6. conecta amigos para recomendações e conversas;
-7. cria comunidades ligadas a filmes, séries e interesses;
-8. protege comentários marcados como spoiler;
-9. organiza notificações sociais em um único painel.
+A plataforma reúne descoberta de filmes e séries, disponibilidade nos streamings brasileiros, listas pessoais, avaliações, recomendações, roleta cinematográfica e uma comunidade integrada.
+
+A VIDARIX não reproduz nem hospeda conteúdo audiovisual. Seu objetivo é ajudar o usuário a **descobrir, decidir, organizar e compartilhar** o que pretende assistir.
 
 ---
 
-## Funcionalidades principais
+## Funcionalidades
 
 ### Catálogo e descoberta
 
 - filmes e séries em alta;
 - títulos populares e mais bem avaliados;
 - pesquisa global;
-- filtros por tipo, gênero, nota e plataforma;
-- detalhes completos, sinopse, elenco, trailer e classificação;
-- disponibilidade no Brasil para assinatura, aluguel e compra.
+- filtros por tipo, gênero, nota, ano e plataforma;
+- detalhes, sinopse, elenco, trailers e classificação;
+- disponibilidade no Brasil para assinatura, aluguel e compra;
+- dados fornecidos pela API do TMDB.
 
 ### Roleta VIDARIX
 
 - sorteio por gênero;
 - sorteio por streaming;
-- sorteio entre títulos escolhidos;
-- modo surpresa baseado no perfil;
+- sorteio entre títulos selecionados;
+- modo surpresa;
 - exclusão de títulos já assistidos;
-- histórico dos resultados;
-- modal cinematográfico com o título vencedor.
+- histórico de resultados;
+- apresentação cinematográfica do título escolhido.
 
+### Conta e personalização
 
-### Criação de conta e personalização inicial
-
-Ao criar uma conta, o usuário passa por uma experiência guiada de quatro etapas:
-
-1. criação da conta com nome, usuário, e-mail e senha;
-2. seleção dos serviços de streaming utilizados;
-3. escolha dos gêneros favoritos;
-4. definição da preferência entre filmes e séries, estilo de descoberta e privacidade do perfil.
-
-Essas respostas alimentam catálogo, roleta, perfil e recomendações. A aplicação continua acessível como visitante, mas login e cadastro permitem sincronizar os dados pelo Supabase.
-
-As rotas de autenticação disponíveis são:
-
-```text
-/entrar
-/criar-conta
-/recuperar-senha
-/redefinir-senha
-```
-
-O frontend utiliza `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Segredos e chaves administrativas nunca devem receber o prefixo `VITE_`.
-
-### Perfil e preferências
-
-- foto, nome de exibição, usuário e biografia;
-- streamings assinados;
-- gêneros favoritos e gêneros a evitar;
+- cadastro e login com Supabase Auth;
+- onboarding de preferências;
+- seleção dos streamings utilizados;
+- escolha de gêneros favoritos;
 - preferência entre filmes e séries;
-- nota mínima e duração máxima;
+- recuperação e redefinição de senha;
+- sessão persistente.
+
+### Perfil e biblioteca pessoal
+
+- foto, nome, username e biografia;
+- streamings assinados;
+- gêneros favoritos e gêneros excluídos;
 - controles de privacidade;
-- listas, histórico e estatísticas pessoais.
+- lista para assistir;
+- títulos assistidos;
+- favoritos;
+- avaliações e anotações;
+- histórico da roleta.
 
-### Minha Lista
+### Comunidade
 
-- Quero Assistir;
-- Já Assisti;
-- Favoritos;
-- avaliações e anotações pessoais.
-
----
-
-## Comunidade VIDARIX
-
-A atualização social transforma a plataforma em uma rede de descoberta cinematográfica.
-
-### Amigos
-
-- pedidos de amizade;
-- aceitar ou recusar solicitações;
-- encontrar novos usuários;
-- visualizar amigos online;
-- remover conexões;
-- acesso rápido às conversas privadas.
-
-### Recomendações
-
-Em qualquer filme ou série, o usuário pode selecionar amigos ou grupos, escrever uma mensagem e enviar uma recomendação. A área de recomendações mostra:
-
-- indicações recebidas;
-- recomendações enviadas;
-- status da recomendação;
-- ação para abrir ou adicionar o título à lista.
-
-### Conversas privadas
-
-- chat individual entre amigos;
-- compartilhamento de títulos dentro da conversa;
-- histórico local das mensagens;
-- indicação de presença online.
-
-### Grupos
-
-- grupos públicos ou privados;
-- criação de grupos;
-- participação e saída de grupos;
-- chat coletivo;
-- lista coletiva de títulos;
-- base preparada para roletas exclusivas dos grupos.
-
-### Comunidade de cada título
-
-Cada filme ou série possui uma área própria com:
-
-- comentários;
-- chat do título;
-- teorias;
-- avaliações de 1 a 10;
-- curtidas;
-- marcação e ocultação de spoilers.
-
-### Feed e notificações
-
-- atividade dos amigos;
-- pedidos de amizade;
-- recomendações;
-- mensagens e participação em grupos;
-- sino com contador de notificações não lidas;
-- opção para marcar todas como lidas.
+- busca de usuários;
+- solicitações de amizade;
+- amizades persistidas no Supabase;
+- conversas particulares;
+- mensagens em tempo real;
+- grupos públicos e privados;
+- recomendações para amigos e grupos;
+- notificações persistentes;
+- comentários, teorias, avaliações e curtidas por título;
+- proteção contra spoilers.
 
 ---
 
-## Funcionamento dos dados sociais
-
-A interface social funciona em modo local para permitir demonstração e desenvolvimento sem depender imediatamente de um backend. Os dados ficam armazenados no navegador.
-
-O banco inicial do Supabase está versionado em:
+## Arquitetura
 
 ```text
-supabase/migrations/20260724130800_vidarix_initial_schema.sql
+React + TypeScript + Vite
+          │
+          ├── Vercel                 → frontend
+          ├── Supabase Auth          → login e cadastro
+          ├── PostgreSQL + RLS       → perfis, listas e dados sociais
+          ├── Supabase Realtime      → mensagens e notificações
+          ├── Supabase Storage       → avatares
+          └── Edge Function          → proxy seguro para o TMDB
 ```
 
-Essa migration cria perfis, preferências, streamings, gêneros, listas, avaliações, histórico da roleta, políticas RLS e o bucket de avatares. Amizades, grupos e mensagens reais devem ser adicionados em migrations posteriores.
+A chave do TMDB permanece protegida nos **Secrets do Supabase** e não é enviada ao navegador.
 
 ---
 
 ## Tecnologias
 
-- React 19;
-- TypeScript;
-- Tailwind CSS 4;
-- Vite;
-- Express;
-- Supabase;
-- TMDB API;
-- JustWatch via TMDB;
-- Lucide React;
-- Canvas Confetti;
-- Web Audio API;
-- PWA com Service Worker.
+| Área | Tecnologias |
+|---|---|
+| Interface | React 19, TypeScript, Tailwind CSS 4 |
+| Build | Vite, ESBuild |
+| Backend | Supabase Auth, PostgreSQL, Storage e Edge Functions |
+| Tempo real | Supabase Realtime |
+| Catálogo | TMDB API |
+| Streaming | Dados do JustWatch disponibilizados pelo TMDB |
+| Ícones e animações | Lucide React, Motion, Canvas Confetti |
+| Aplicação web | PWA com Service Worker |
+| Hospedagem | Vercel |
 
 ---
 
-## Estrutura social adicionada
+## Estrutura do projeto
 
 ```text
-src/pages/CommunityPage.tsx
-src/components/NotificationPanel.tsx
-src/components/RecommendModal.tsx
-src/components/TitleCommunity.tsx
-src/services/socialService.ts
-src/vidarix-social.css
-supabase/migrations/20260724130800_vidarix_initial_schema.sql
+VIDARIX/
+├── assets/
+│   └── vidarix-preview.png
+├── public/
+│   ├── brand/
+│   ├── providers/
+│   ├── manifest.json
+│   └── sw.js
+├── src/
+│   ├── components/
+│   ├── context/
+│   ├── data/
+│   ├── lib/
+│   ├── pages/
+│   ├── services/
+│   ├── App.tsx
+│   └── main.tsx
+├── supabase/
+│   ├── functions/
+│   │   └── tmdb-proxy/
+│   ├── migrations/
+│   └── config.toml
+├── .env.example
+├── README.md
+├── vercel.json
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
 ```
 
 ---
 
-## Privacidade, segurança e moderação
+## Banco de dados
 
-A evolução da área social deve manter:
+### Dados individuais
 
-- bloqueio de usuários;
-- denúncia de comentários e mensagens;
-- grupos privados com aprovação;
-- controle de visibilidade do perfil;
-- marcação obrigatória de spoilers;
-- políticas RLS no Supabase;
-- acesso às conversas somente pelos participantes;
-- ferramentas de administração de grupos.
+- `profiles`
+- `user_preferences`
+- `user_streaming_providers`
+- `user_favorite_genres`
+- `user_excluded_genres`
+- `watchlist`
+- `watched_titles`
+- `favorites`
+- `roulette_history`
+- `user_ratings`
+
+### Dados sociais
+
+- `friend_requests`
+- `friendships`
+- `conversations`
+- `conversation_participants`
+- `messages`
+- `groups`
+- `group_members`
+- `group_messages`
+- `group_watchlist`
+- `recommendations`
+- `notifications`
+- `title_discussions`
+- `discussion_likes`
+
+As tabelas expostas utilizam **Row Level Security** para limitar o acesso de acordo com o usuário autenticado.
 
 ---
 
-## Avisos legais e atribuição
+## Variáveis de ambiente
+
+Crie um arquivo `.env` local com:
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_APP_URL=
+```
+
+A chave do TMDB deve ser configurada nos Secrets do Supabase:
+
+```text
+TMDB_API_KEY
+```
+
+> Nunca envie `.env`, chaves secretas, `service_role` ou credenciais administrativas para o GitHub.
+
+---
+
+## Rotas principais
+
+```text
+/                    Início
+/filmes              Filmes
+/series              Séries
+/catalogo            Catálogo completo
+/roleta              Roleta VIDARIX
+/minha-lista          Biblioteca pessoal
+/comunidade           Comunidade
+/perfil               Perfil
+/perfil/editar        Editar perfil
+/configuracoes        Configurações
+/entrar               Login
+/criar-conta          Cadastro
+/recuperar-senha      Recuperação de senha
+/redefinir-senha      Redefinição de senha
+/termos               Termos de uso
+/privacidade          Política de privacidade
+/sobre                Sobre a VIDARIX
+```
+
+---
+
+## Segurança
+
+- autenticação gerenciada pelo Supabase;
+- políticas RLS no banco;
+- conversas acessíveis apenas aos participantes;
+- dados individuais isolados por usuário;
+- chave do TMDB fora do frontend;
+- avatares protegidos por políticas do Storage;
+- cache da PWA preparado para receber novas versões.
+
+---
+
+## Próximas evoluções
+
+- bloqueio de usuários;
+- denúncias de comentários e mensagens;
+- moderação avançada de grupos;
+- presença online com Supabase Presence;
+- roletas exclusivas para grupos;
+- melhorias de acessibilidade;
+- recomendações ainda mais personalizadas.
+
+---
+
+## Avisos legais
 
 - A VIDARIX é uma plataforma independente de descoberta cinematográfica.
 - A plataforma não hospeda, transmite ou disponibiliza obras audiovisuais.
 - Dados de filmes e séries são fornecidos pelo TMDB.
-- Informações de disponibilidade em streaming são fornecidas pelo JustWatch através do TMDB.
+- Informações de disponibilidade em streaming são fornecidas pelo JustWatch por meio do TMDB.
+- Marcas, pôsteres, títulos e demais materiais pertencem aos respectivos proprietários.
+
+---
+
+<p align="center">
+  <strong>VIDARIX — descubra o que assistir hoje.</strong>
+</p>
