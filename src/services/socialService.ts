@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   CommunityGroup,
   CommunityMessage,
@@ -12,667 +13,944 @@ import {
   TitleDiscussionEntry,
   UserProfile
 } from '../types';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
-const KEYS = {
-  users: 'vidarix_social_users_v1',
-  friends: 'vidarix_social_friends_v1',
-  requests: 'vidarix_social_friend_requests_v1',
-  notifications: 'vidarix_social_notifications_v1',
-  recommendations: 'vidarix_social_recommendations_v1',
-  groups: 'vidarix_social_groups_v1',
-  conversations: 'vidarix_social_conversations_v1',
-  discussions: 'vidarix_social_title_discussions_v1',
-  activities: 'vidarix_social_activities_v1'
-} as const;
+type ProfileRow = {
+  id: string;
+  full_name?: string | null;
+  display_name?: string | null;
+  username?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  public_profile?: boolean | null;
+};
 
-const nowMinus = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-const makeId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+type SocialCache = {
+  users: SocialUser[];
+  friends: Friendship[];
+  requests: FriendRequest[];
+  notifications: SocialNotification[];
+  recommendations: MediaRecommendation[];
+  groups: CommunityGroup[];
+  conversations: DirectConversation[];
+  activities: SocialActivity[];
+};
 
-const DEMO_USERS: SocialUser[] = [
-  {
-    id: 'social_ana',
-    displayName: 'Ana Martins',
-    username: 'ana.cinefila',
-    bio: 'Suspense, ficção científica e finais que rendem teoria.',
-    favoriteGenres: [878, 53, 9648],
-    watchedCount: 148,
-    mutualFriends: 3,
-    isOnline: true
-  },
-  {
-    id: 'social_caio',
-    displayName: 'Caio Nunes',
-    username: 'caio.maratonas',
-    bio: 'Sempre procurando a próxima série para maratonar.',
-    favoriteGenres: [18, 35, 10765],
-    watchedCount: 92,
-    mutualFriends: 2,
-    isOnline: false
-  },
-  {
-    id: 'social_marina',
-    displayName: 'Marina Rocha',
-    username: 'marina.noir',
-    bio: 'Cinema brasileiro, terror e dramas intensos.',
-    favoriteGenres: [27, 18, 80],
-    watchedCount: 211,
-    mutualFriends: 5,
-    isOnline: true
-  },
-  {
-    id: 'social_pedro',
-    displayName: 'Pedro Lima',
-    username: 'pedro.popcorn',
-    bio: 'Ação, aventura e animação para assistir com todo mundo.',
-    favoriteGenres: [28, 12, 16],
-    watchedCount: 76,
-    mutualFriends: 1,
-    isOnline: true
-  },
-  {
-    id: 'social_livia',
-    displayName: 'Lívia Souza',
-    username: 'livia.series',
-    bio: 'Especialista em séries curtas e episódios finais.',
-    favoriteGenres: [18, 9648, 10765],
-    watchedCount: 130,
-    mutualFriends: 4,
-    isOnline: false
+const emptyCache = (): SocialCache => ({
+  users: [],
+  friends: [],
+  requests: [],
+  notifications: [],
+  recommendations: [],
+  groups: [],
+  conversations: [],
+  activities: []
+});
+
+const currentSocialUser = (profile: UserProfile): SocialUser => ({
+  id: profile.id,
+  displayName: profile.displayName || profile.fullName || profile.name || 'Cinéfilo VIDARIX',
+  username: profile.username || 'cinefilo_vidarix',
+  avatar: profile.photoURL || profile.avatar || null,
+  bio: profile.bio || '',
+  favoriteGenres: profile.favoriteGenres || [],
+  watchedCount: 0,
+  mutualFriends: 0,
+  isOnline: true
+});
+
+const profileRowToSocialUser = (row: ProfileRow): SocialUser => ({
+  id: row.id,
+  displayName: row.display_name || row.full_name || row.username || 'Usuário VIDARIX',
+  username: row.username || `user_${row.id.slice(0, 8)}`,
+  avatar: row.avatar_url || null,
+  bio: row.bio || '',
+  favoriteGenres: [],
+  watchedCount: 0,
+  mutualFriends: 0,
+  isOnline: false
+});
+
+const fallbackSocialUser = (id: string): SocialUser => ({
+  id,
+  displayName: 'Usuário VIDARIX',
+  username: `user_${id.slice(0, 8)}`,
+  avatar: null,
+  bio: '',
+  favoriteGenres: [],
+  watchedCount: 0,
+  mutualFriends: 0,
+  isOnline: false
+});
+
+const normalizeMedia = (
+  tmdbId: number,
+  mediaType: 'movie' | 'tv',
+  title?: string | null,
+  posterPath?: string | null,
+  mediaData?: unknown,
+  mediaPool: MediaItem[] = []
+): MediaItem => {
+  if (mediaData && typeof mediaData === 'object') {
+    const data = mediaData as Partial<MediaItem>;
+    return {
+      id: Number(data.id ?? tmdbId),
+      title: data.title || data.name || title || 'Título VIDARIX',
+      name: data.name || data.title || title || undefined,
+      media_type: (data.media_type || mediaType) as 'movie' | 'tv',
+      overview: data.overview || '',
+      poster_path: data.poster_path ?? posterPath ?? null,
+      backdrop_path: data.backdrop_path ?? null,
+      vote_average: Number(data.vote_average ?? 0),
+      genre_ids: Array.isArray(data.genre_ids) ? data.genre_ids : [],
+      ...data
+    } as MediaItem;
   }
-];
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+  const found = mediaPool.find((item) => item.id === tmdbId && item.media_type === mediaType);
+  if (found) return found;
 
-function write<T>(key: string, value: T) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Browser storage may be unavailable in private mode.
-  }
-  window.dispatchEvent(new CustomEvent('vidarix-social-updated'));
-}
-
-function currentUser(profile: UserProfile): SocialUser {
   return {
-    id: profile.id || 'guest_user',
-    displayName: profile.displayName || profile.fullName || profile.name || 'Cinéfilo VIDARIX',
-    username: profile.username || 'cinefilo_vidarix',
-    avatar: profile.photoURL || profile.avatar || null,
-    bio: profile.bio,
-    favoriteGenres: profile.favoriteGenres,
-    watchedCount: 0,
-    mutualFriends: 0,
-    isOnline: true
+    id: tmdbId,
+    title: title || 'Título VIDARIX',
+    name: mediaType === 'tv' ? title || 'Título VIDARIX' : undefined,
+    media_type: mediaType,
+    overview: '',
+    poster_path: posterPath || null,
+    backdrop_path: null,
+    vote_average: 0,
+    genre_ids: []
   };
-}
+};
 
-function safeMedia(item?: MediaItem): MediaItem | undefined {
-  if (!item) return undefined;
-  return {
-    ...item,
-    title: item.title || item.name || 'Título VIDARIX',
-    name: item.name || item.title
-  };
-}
+const dispatchSocialUpdate = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('vidarix-social-updated'));
+  }
+};
+
+const mapFriendRequestStatus = (status: string): FriendRequest['status'] => {
+  if (status === 'accepted') return 'accepted';
+  if (status === 'pending') return 'pending';
+  if (status === 'rejected' || status === 'cancelled') return 'declined';
+  return 'blocked';
+};
 
 export class SocialService {
-  static initialize(profile: UserProfile, mediaPool: MediaItem[] = []) {
-    const storedUsers = read<SocialUser[]>(KEYS.users, DEMO_USERS);
-    const enrichedUsers = storedUsers.map((user, index) => ({
-      ...user,
-      recentWatched: user.recentWatched?.length
-        ? user.recentWatched
-        : mediaPool.slice(index * 2, index * 2 + 4).map((item) => safeMedia(item)!).filter(Boolean)
+  private static cache: SocialCache = emptyCache();
+  private static profile: UserProfile | null = null;
+  private static mediaPool: MediaItem[] = [];
+  private static profileMap = new Map<string, SocialUser>();
+  private static discussionCache = new Map<string, TitleDiscussionEntry[]>();
+  private static realtimeChannel: RealtimeChannel | null = null;
+  private static currentUserId = '';
+  private static loadPromise: Promise<void> | null = null;
+  private static reloadTimer: number | null = null;
+
+  static async initialize(profile: UserProfile, mediaPool: MediaItem[] = []): Promise<void> {
+    this.profile = profile;
+    this.mediaPool = mediaPool;
+
+    if (!this.canUseBackend(profile)) {
+      await this.disconnectRealtime();
+      this.currentUserId = '';
+      this.profileMap.clear();
+      this.cache = emptyCache();
+      dispatchSocialUpdate();
+      return;
+    }
+
+    const changedUser = this.currentUserId !== profile.id;
+    this.currentUserId = profile.id;
+    this.profileMap.set(profile.id, currentSocialUser(profile));
+
+    if (changedUser) {
+      await this.disconnectRealtime();
+      this.discussionCache.clear();
+    }
+
+    if (!this.loadPromise) {
+      this.loadPromise = this.loadAll()
+        .catch((error) => {
+          console.error('Erro ao carregar backend social da VIDARIX:', error);
+        })
+        .finally(() => {
+          this.loadPromise = null;
+        });
+    }
+
+    await this.loadPromise;
+    await this.connectRealtime();
+  }
+
+  private static canUseBackend(profile: UserProfile | null = this.profile): profile is UserProfile {
+    return Boolean(
+      isSupabaseConfigured &&
+      profile?.id &&
+      profile.id !== 'guest_user' &&
+      !profile.id.startsWith('guest_') &&
+      !profile.id.startsWith('local_') &&
+      profile.isAuthenticated !== false
+    );
+  }
+
+  private static requireUser(): string {
+    if (!this.canUseBackend() || !this.profile) {
+      throw new Error('Entre na sua conta para usar os recursos da Comunidade.');
+    }
+    return this.profile.id;
+  }
+
+  private static async disconnectRealtime() {
+    if (this.realtimeChannel) {
+      await supabase.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
+    }
+  }
+
+  private static scheduleReload() {
+    if (typeof window === 'undefined') return;
+    if (this.reloadTimer) window.clearTimeout(this.reloadTimer);
+    this.reloadTimer = window.setTimeout(() => {
+      this.reloadTimer = null;
+      void this.loadAll().catch((error) => console.error('Erro ao atualizar dados sociais em tempo real:', error));
+    }, 220);
+  }
+
+  private static async connectRealtime() {
+    if (!this.canUseBackend() || this.realtimeChannel) return;
+
+    const tables = [
+      'friend_requests',
+      'friendships',
+      'messages',
+      'group_messages',
+      'groups',
+      'group_members',
+      'group_watchlist',
+      'recommendations',
+      'notifications',
+      'title_discussions',
+      'discussion_likes'
+    ];
+
+    let channel = supabase.channel(`vidarix-social-${this.currentUserId}`);
+    tables.forEach((table) => {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        () => this.scheduleReload()
+      );
+    });
+
+    this.realtimeChannel = channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn('Realtime social temporariamente indisponível:', status);
+      }
+    });
+  }
+
+  private static async fetchProfiles(ids?: string[]): Promise<Map<string, SocialUser>> {
+    let query = supabase
+      .from('profiles')
+      .select('id, full_name, display_name, username, bio, avatar_url, public_profile');
+
+    if (ids && ids.length > 0) query = query.in('id', [...new Set(ids)]);
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('Não foi possível carregar alguns perfis sociais:', error.message);
+      return this.profileMap;
+    }
+
+    (data || []).forEach((row: ProfileRow) => {
+      this.profileMap.set(row.id, profileRowToSocialUser(row));
+    });
+
+    if (this.profile) this.profileMap.set(this.profile.id, currentSocialUser(this.profile));
+    return this.profileMap;
+  }
+
+  private static userById(id: string): SocialUser {
+    return this.profileMap.get(id) || fallbackSocialUser(id);
+  }
+
+  private static async loadAll(): Promise<void> {
+    if (!this.canUseBackend()) return;
+
+    await this.fetchProfiles();
+
+    await Promise.all([
+      this.loadFriendData(),
+      this.loadGroups(),
+      this.loadConversations(),
+      this.loadRecommendations(),
+      this.loadNotifications()
+    ]);
+
+    this.cache.users = [...this.profileMap.values()]
+      .filter((user) => user.id !== this.currentUserId)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pt-BR'));
+
+    this.cache.activities = this.buildActivities();
+    dispatchSocialUpdate();
+  }
+
+  private static async loadFriendData() {
+    const userId = this.requireUser();
+
+    const [requestResult, friendshipResult] = await Promise.all([
+      supabase
+        .from('friend_requests')
+        .select('*')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('friendships')
+        .select('*')
+        .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (requestResult.error) throw requestResult.error;
+    if (friendshipResult.error) throw friendshipResult.error;
+
+    const relatedIds = [
+      ...(requestResult.data || []).flatMap((row: any) => [row.sender_id, row.receiver_id]),
+      ...(friendshipResult.data || []).flatMap((row: any) => [row.user_a_id, row.user_b_id])
+    ];
+    if (relatedIds.length > 0) await this.fetchProfiles(relatedIds);
+
+    this.cache.requests = (requestResult.data || []).map((row: any) => ({
+      id: row.id,
+      fromUser: this.userById(row.sender_id),
+      toUserId: row.receiver_id,
+      status: mapFriendRequestStatus(row.status),
+      createdAt: row.created_at
     }));
-    write(KEYS.users, enrichedUsers);
 
-    const demoUserById = (id: string) => enrichedUsers.find((user) => user.id === id) || DEMO_USERS.find((user) => user.id === id)!;
+    this.cache.friends = (friendshipResult.data || []).map((row: any) => {
+      const friendId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+      return {
+        id: row.id,
+        user: this.userById(friendId),
+        createdAt: row.created_at
+      };
+    });
+  }
 
-    if (!localStorage.getItem(KEYS.friends)) {
-      const friends: Friendship[] = [
-        { id: 'friend_ana', user: demoUserById('social_ana'), createdAt: nowMinus(60 * 24 * 14) },
-        { id: 'friend_marina', user: demoUserById('social_marina'), createdAt: nowMinus(60 * 24 * 7) }
-      ];
-      write(KEYS.friends, friends);
+  private static async loadGroups() {
+    const { data: groupRows, error: groupError } = await supabase
+      .from('groups')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (groupError) throw groupError;
+    if (!groupRows?.length) {
+      this.cache.groups = [];
+      return;
     }
 
-    const existingFriends = this.getFriends();
-    if (existingFriends.length > 0) {
-      write(KEYS.friends, existingFriends.map((friend) => ({
-        ...friend,
-        user: demoUserById(friend.user.id) || friend.user
-      })));
+    const groupIds = groupRows.map((row: any) => row.id);
+    const [memberResult, messageResult, watchlistResult] = await Promise.all([
+      supabase.from('group_members').select('*').in('group_id', groupIds),
+      supabase.from('group_messages').select('*').in('group_id', groupIds).order('created_at', { ascending: true }),
+      supabase.from('group_watchlist').select('*').in('group_id', groupIds).order('created_at', { ascending: false })
+    ]);
+
+    if (memberResult.error) throw memberResult.error;
+    if (messageResult.error) throw messageResult.error;
+    if (watchlistResult.error) throw watchlistResult.error;
+
+    const relatedIds = [
+      ...groupRows.map((row: any) => row.owner_id),
+      ...(memberResult.data || []).map((row: any) => row.user_id),
+      ...(messageResult.data || []).map((row: any) => row.sender_id)
+    ];
+    if (relatedIds.length > 0) await this.fetchProfiles(relatedIds);
+
+    this.cache.groups = groupRows.map((group: any) => {
+      const memberships = (memberResult.data || []).filter((row: any) => row.group_id === group.id && row.status === 'active');
+      const messages: CommunityMessage[] = (messageResult.data || [])
+        .filter((row: any) => row.group_id === group.id)
+        .map((row: any) => ({
+          id: row.id,
+          author: this.userById(row.sender_id),
+          text: row.body || '',
+          media: row.media_data
+            ? normalizeMedia(
+                Number((row.media_data as any)?.id || 0),
+                ((row.media_data as any)?.media_type || 'movie') as 'movie' | 'tv',
+                (row.media_data as any)?.title,
+                (row.media_data as any)?.poster_path,
+                row.media_data,
+                this.mediaPool
+              )
+            : undefined,
+          spoiler: Boolean(row.spoiler),
+          createdAt: row.created_at
+        }));
+
+      const watchlist: MediaItem[] = (watchlistResult.data || [])
+        .filter((row: any) => row.group_id === group.id)
+        .map((row: any) => normalizeMedia(
+          row.tmdb_id,
+          row.media_type,
+          row.title,
+          row.poster_path,
+          row.media_data,
+          this.mediaPool
+        ));
+
+      const linkedMedia = group.linked_media && typeof group.linked_media === 'object'
+        ? normalizeMedia(
+            Number(group.linked_media.id || 0),
+            (group.linked_media.media_type || 'movie') as 'movie' | 'tv',
+            group.linked_media.title,
+            group.linked_media.poster_path,
+            group.linked_media,
+            this.mediaPool
+          )
+        : undefined;
+
+      return {
+        id: group.id,
+        name: group.name,
+        description: group.description || '',
+        cover: group.cover_url || null,
+        privacy: group.privacy,
+        ownerId: group.owner_id,
+        memberIds: memberships.map((row: any) => row.user_id),
+        members: memberships.map((row: any) => this.userById(row.user_id)),
+        messages,
+        watchlist,
+        createdAt: group.created_at,
+        linkedMedia
+      } as CommunityGroup;
+    });
+  }
+
+  private static async loadConversations() {
+    const userId = this.requireUser();
+    const { data: ownParticipants, error: ownError } = await supabase
+      .from('conversation_participants')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('archived', false);
+
+    if (ownError) throw ownError;
+    if (!ownParticipants?.length) {
+      this.cache.conversations = [];
+      return;
     }
 
-    if (!localStorage.getItem(KEYS.requests)) {
-      const requests: FriendRequest[] = [
-        {
-          id: 'request_caio',
-          fromUser: demoUserById('social_caio'),
-          toUserId: profile.id,
-          status: 'pending',
-          createdAt: nowMinus(85)
-        }
-      ];
-      write(KEYS.requests, requests);
-    }
+    const conversationIds = ownParticipants.map((row: any) => row.conversation_id);
+    const [conversationResult, participantResult, messageResult] = await Promise.all([
+      supabase.from('conversations').select('*').in('id', conversationIds).order('updated_at', { ascending: false }),
+      supabase.from('conversation_participants').select('*').in('conversation_id', conversationIds),
+      supabase.from('messages').select('*').in('conversation_id', conversationIds).order('created_at', { ascending: true })
+    ]);
 
-    if (!localStorage.getItem(KEYS.notifications)) {
-      const media = safeMedia(mediaPool[0]);
-      const notifications: SocialNotification[] = [
-        {
-          id: 'notif_friend_caio',
-          category: 'friendship',
-          title: 'Novo pedido de amizade',
-          description: 'Caio Nunes quer adicionar você como amigo.',
-          actor: DEMO_USERS[1],
-          targetPath: '/comunidade?tab=friends',
-          createdAt: nowMinus(34),
-          read: false
-        },
-        {
-          id: 'notif_group',
-          category: 'group',
-          title: 'Nova conversa no grupo',
-          description: 'Marina comentou no grupo Clube VIDARIX Sci-Fi.',
-          actor: DEMO_USERS[2],
-          targetPath: '/comunidade?tab=groups',
-          createdAt: nowMinus(72),
-          read: false
-        },
-        ...(media
-          ? [{
-              id: 'notif_recommendation',
-              category: 'recommendation' as const,
-              title: 'Ana recomendou um título',
-              description: `${media.title || media.name} pode combinar com você.`,
-              actor: DEMO_USERS[0],
-              media,
-              targetPath: '/comunidade?tab=recommendations',
-              createdAt: nowMinus(210),
-              read: true
-            }]
-          : [])
-      ];
-      write(KEYS.notifications, notifications);
-    }
+    if (conversationResult.error) throw conversationResult.error;
+    if (participantResult.error) throw participantResult.error;
+    if (messageResult.error) throw messageResult.error;
 
-    if (!localStorage.getItem(KEYS.groups)) {
-      const current = currentUser(profile);
-      const groups: CommunityGroup[] = [
-        {
-          id: 'group_scifi',
-          name: 'Clube VIDARIX Sci-Fi',
-          description: 'Teorias, indicações e sessões coletivas de ficção científica.',
-          privacy: 'public',
-          ownerId: DEMO_USERS[0].id,
-          memberIds: [current.id, DEMO_USERS[0].id, DEMO_USERS[2].id],
-          members: [current, DEMO_USERS[0], DEMO_USERS[2]],
-          messages: [
-            {
-              id: 'group_msg_1',
-              author: DEMO_USERS[0],
-              text: 'Qual título merece entrar na próxima roleta do grupo?',
-              createdAt: nowMinus(180)
-            },
-            {
-              id: 'group_msg_2',
-              author: DEMO_USERS[2],
-              text: 'Quero algo com mistério e viagem no tempo.',
-              createdAt: nowMinus(150)
-            }
-          ],
-          watchlist: mediaPool.slice(0, 3).map((item) => safeMedia(item)!).filter(Boolean),
-          createdAt: nowMinus(60 * 24 * 30)
-        },
-        {
-          id: 'group_terror',
-          name: 'Terror de Sexta',
-          description: 'Sessões semanais, enquetes e comentários sem spoiler.',
-          privacy: 'private',
-          ownerId: DEMO_USERS[2].id,
-          memberIds: [DEMO_USERS[2].id, DEMO_USERS[4].id],
-          members: [DEMO_USERS[2], DEMO_USERS[4]],
-          messages: [],
-          watchlist: mediaPool.slice(3, 6).map((item) => safeMedia(item)!).filter(Boolean),
-          createdAt: nowMinus(60 * 24 * 20)
-        }
-      ];
-      write(KEYS.groups, groups);
-    }
+    const profileIds = [
+      ...(participantResult.data || []).map((row: any) => row.user_id),
+      ...(messageResult.data || []).map((row: any) => row.sender_id)
+    ];
+    if (profileIds.length > 0) await this.fetchProfiles(profileIds);
 
-    if (!localStorage.getItem(KEYS.conversations)) {
-      const current = currentUser(profile);
-      const conversations: DirectConversation[] = [
-        {
-          id: `conversation_${DEMO_USERS[0].id}`,
-          participant: DEMO_USERS[0],
-          messages: [
-            { id: 'dm_1', author: DEMO_USERS[0], text: 'Você já viu o último título que te recomendei?', createdAt: nowMinus(95) },
-            { id: 'dm_2', author: current, text: 'Ainda não, mas já coloquei na minha lista!', createdAt: nowMinus(82) }
-          ],
-          updatedAt: nowMinus(82)
-        },
-        {
-          id: `conversation_${DEMO_USERS[2].id}`,
-          participant: DEMO_USERS[2],
-          messages: [
-            { id: 'dm_3', author: DEMO_USERS[2], text: 'Vamos criar uma roleta só com terror brasileiro?', createdAt: nowMinus(230) }
-          ],
-          updatedAt: nowMinus(230)
-        }
-      ];
-      write(KEYS.conversations, conversations);
-    }
+    this.cache.conversations = (conversationResult.data || []).map((conversation: any) => {
+      const participantRows = (participantResult.data || []).filter((row: any) => row.conversation_id === conversation.id);
+      const otherParticipant = participantRows.find((row: any) => row.user_id !== userId);
+      const messages: CommunityMessage[] = (messageResult.data || [])
+        .filter((row: any) => row.conversation_id === conversation.id)
+        .map((row: any) => ({
+          id: row.id,
+          author: this.userById(row.sender_id),
+          text: row.body || '',
+          media: row.media_data
+            ? normalizeMedia(
+                Number((row.media_data as any)?.id || 0),
+                ((row.media_data as any)?.media_type || 'movie') as 'movie' | 'tv',
+                (row.media_data as any)?.title,
+                (row.media_data as any)?.poster_path,
+                row.media_data,
+                this.mediaPool
+              )
+            : undefined,
+          spoiler: Boolean(row.spoiler),
+          createdAt: row.created_at
+        }));
 
-    if (!localStorage.getItem(KEYS.recommendations)) {
-      const first = safeMedia(mediaPool[0]);
-      const second = safeMedia(mediaPool[1]);
-      const recommendations: MediaRecommendation[] = [];
-      if (first) {
-        recommendations.push({
-          id: 'recommendation_in_1',
-          sender: DEMO_USERS[0],
-          recipientId: profile.id,
-          recipientType: 'user',
-          recipientName: currentUser(profile).displayName,
-          media: first,
-          message: 'Esse parece muito a sua cara. Depois me conta o que achou!',
-          status: 'sent',
-          createdAt: nowMinus(210)
-        });
-      }
-      if (second) {
-        recommendations.push({
-          id: 'recommendation_out_1',
-          sender: currentUser(profile),
-          recipientId: DEMO_USERS[2].id,
-          recipientType: 'user',
-          recipientName: DEMO_USERS[2].displayName,
-          media: second,
-          message: 'Acho que você vai gostar da atmosfera.',
-          status: 'viewed',
-          createdAt: nowMinus(60 * 24)
-        });
-      }
-      write(KEYS.recommendations, recommendations);
-    }
+      return {
+        id: conversation.id,
+        participant: this.userById(otherParticipant?.user_id || userId),
+        messages,
+        updatedAt: conversation.updated_at || conversation.created_at
+      } as DirectConversation;
+    });
+  }
 
-    if (!localStorage.getItem(KEYS.activities)) {
-      const activityMedia = safeMedia(mediaPool[0]);
-      const activities: SocialActivity[] = [
-        ...(activityMedia
-          ? [{
-              id: 'activity_ana_watched',
-              actor: DEMO_USERS[0],
-              action: 'watched' as const,
-              description: `assistiu ${activityMedia.title || activityMedia.name} e deu nota 9`,
-              media: activityMedia,
-              createdAt: nowMinus(48)
-            }]
-          : []),
-        {
-          id: 'activity_marina_group',
-          actor: DEMO_USERS[2],
-          action: 'joined_group',
-          description: 'entrou no grupo Terror de Sexta',
-          createdAt: nowMinus(140)
-        }
-      ];
-      write(KEYS.activities, activities);
-    }
+  private static async loadRecommendations() {
+    const { data, error } = await supabase
+      .from('recommendations')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (!localStorage.getItem(KEYS.discussions)) {
-      const firstMedia = safeMedia(mediaPool[0]);
-      const seeded: TitleDiscussionEntry[] = firstMedia
-        ? [
-            {
-              id: 'discussion_demo_1',
-              mediaKey: `${firstMedia.media_type}:${firstMedia.id}`,
-              author: demoUserById('social_ana'),
-              text: 'A direção e a trilha sonora funcionaram muito bem juntas. O que vocês acharam do ritmo?',
-              kind: 'comment',
-              spoiler: false,
-              likes: ['social_marina'],
-              createdAt: nowMinus(120)
-            },
-            {
-              id: 'discussion_demo_2',
-              mediaKey: `${firstMedia.media_type}:${firstMedia.id}`,
-              author: demoUserById('social_marina'),
-              text: 'Tenho uma teoria sobre a última cena, mas marquei como spoiler para não estragar a experiência.',
-              kind: 'theory',
-              spoiler: true,
-              likes: [],
-              createdAt: nowMinus(88)
-            },
-            {
-              id: 'discussion_demo_3',
-              mediaKey: `${firstMedia.media_type}:${firstMedia.id}`,
-              author: demoUserById('social_caio'),
-              text: 'Vale muito a pena assistir com calma e sem olhar o celular.',
-              kind: 'review',
-              spoiler: false,
-              rating: 8,
-              likes: ['social_ana'],
-              createdAt: nowMinus(52)
-            }
-          ]
-        : [];
-      write(KEYS.discussions, seeded);
-    }
+    if (error) throw error;
+
+    const profileIds = (data || []).flatMap((row: any) => [row.sender_id, row.recipient_user_id].filter(Boolean));
+    if (profileIds.length > 0) await this.fetchProfiles(profileIds);
+
+    const groupsById = new Map(this.cache.groups.map((group) => [group.id, group]));
+    this.cache.recommendations = (data || []).map((row: any) => {
+      const recipientType = row.recipient_user_id ? 'user' : 'group';
+      const recipientId = row.recipient_user_id || row.recipient_group_id;
+      const recipientName = recipientType === 'user'
+        ? this.userById(recipientId).displayName
+        : groupsById.get(recipientId)?.name || 'Grupo VIDARIX';
+
+      return {
+        id: row.id,
+        sender: this.userById(row.sender_id),
+        recipientId,
+        recipientType,
+        recipientName,
+        media: normalizeMedia(
+          row.tmdb_id,
+          row.media_type,
+          row.title,
+          row.poster_path,
+          row.media_data,
+          this.mediaPool
+        ),
+        message: row.message || undefined,
+        status: row.status,
+        createdAt: row.created_at
+      } as MediaRecommendation;
+    });
+  }
+
+  private static async loadNotifications() {
+    const userId = this.requireUser();
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    const actorIds = (data || []).map((row: any) => row.actor_id).filter(Boolean);
+    if (actorIds.length > 0) await this.fetchProfiles(actorIds);
+
+    this.cache.notifications = (data || []).map((row: any) => ({
+      id: row.id,
+      category: row.category,
+      title: row.title,
+      description: row.description,
+      createdAt: row.created_at,
+      read: Boolean(row.read),
+      actor: row.actor_id ? this.userById(row.actor_id) : undefined,
+      targetPath: row.target_path || undefined,
+      media: row.media_data && typeof row.media_data === 'object'
+        ? normalizeMedia(
+            Number(row.media_data.id || 0),
+            (row.media_data.media_type || 'movie') as 'movie' | 'tv',
+            row.media_data.title,
+            row.media_data.poster_path,
+            row.media_data,
+            this.mediaPool
+          )
+        : undefined
+    }));
+  }
+
+  private static buildActivities(): SocialActivity[] {
+    const recommendationActivities: SocialActivity[] = this.cache.recommendations.map((item) => ({
+      id: `recommendation_${item.id}`,
+      actor: item.sender,
+      action: 'recommended',
+      description: `recomendou ${item.media.title || item.media.name} para ${item.recipientName}`,
+      media: item.media,
+      createdAt: item.createdAt
+    }));
+
+    const groupActivities: SocialActivity[] = this.cache.groups.map((group) => ({
+      id: `group_${group.id}`,
+      actor: this.userById(group.ownerId),
+      action: 'joined_group',
+      description: `criou o grupo ${group.name}`,
+      group,
+      createdAt: group.createdAt
+    }));
+
+    return [...recommendationActivities, ...groupActivities]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 80);
   }
 
   static getUsers(): SocialUser[] {
-    return read<SocialUser[]>(KEYS.users, DEMO_USERS);
+    return [...this.cache.users];
   }
 
   static getFriends(): Friendship[] {
-    return read<Friendship[]>(KEYS.friends, []);
+    return [...this.cache.friends];
   }
 
   static getFriendRequests(): FriendRequest[] {
-    return read<FriendRequest[]>(KEYS.requests, []);
+    return [...this.cache.requests];
   }
 
   static getNotifications(): SocialNotification[] {
-    return read<SocialNotification[]>(KEYS.notifications, []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.cache.notifications];
   }
 
   static getRecommendations(): MediaRecommendation[] {
-    return read<MediaRecommendation[]>(KEYS.recommendations, []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.cache.recommendations];
   }
 
   static getGroups(): CommunityGroup[] {
-    return read<CommunityGroup[]>(KEYS.groups, []);
+    return [...this.cache.groups];
   }
 
   static getConversations(): DirectConversation[] {
-    return read<DirectConversation[]>(KEYS.conversations, []).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return [...this.cache.conversations];
   }
 
   static getActivities(): SocialActivity[] {
-    return read<SocialActivity[]>(KEYS.activities, []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.cache.activities];
   }
 
   static getTitleDiscussion(media: MediaItem): TitleDiscussionEntry[] {
-    const key = `${media.media_type}:${media.id}`;
-    return read<TitleDiscussionEntry[]>(KEYS.discussions, [])
-      .filter((entry) => entry.mediaKey === key)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return [...(this.discussionCache.get(`${media.media_type}:${media.id}`) || [])];
   }
 
-  static sendFriendRequest(target: SocialUser, profile: UserProfile) {
-    const requests = this.getFriendRequests();
-    if (requests.some((request) => request.fromUser.id === profile.id && request.toUserId === target.id && request.status === 'pending')) return;
-    requests.unshift({
-      id: makeId('request'),
-      fromUser: currentUser(profile),
-      toUserId: target.id,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    });
-    write(KEYS.requests, requests);
-    this.pushNotification({
-      category: 'friendship',
-      title: 'Pedido de amizade enviado',
-      description: `Seu pedido para ${target.displayName} foi enviado.`,
-      actor: target,
-      targetPath: '/comunidade?tab=friends'
-    });
+  static async loadTitleDiscussion(media: MediaItem): Promise<TitleDiscussionEntry[]> {
+    this.requireUser();
+    const { data: discussionRows, error } = await supabase
+      .from('title_discussions')
+      .select('*')
+      .eq('tmdb_id', media.id)
+      .eq('media_type', media.media_type)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const ids = (discussionRows || []).map((row: any) => row.id);
+    const [likesResult] = await Promise.all([
+      ids.length > 0
+        ? supabase.from('discussion_likes').select('*').in('discussion_id', ids)
+        : Promise.resolve({ data: [], error: null } as any),
+      this.fetchProfiles((discussionRows || []).map((row: any) => row.user_id))
+    ]);
+
+    if (likesResult.error) throw likesResult.error;
+
+    const entries: TitleDiscussionEntry[] = (discussionRows || []).map((row: any) => ({
+      id: row.id,
+      mediaKey: `${row.media_type}:${row.tmdb_id}`,
+      author: this.userById(row.user_id),
+      text: row.body,
+      kind: row.kind,
+      spoiler: Boolean(row.spoiler),
+      rating: row.rating == null ? undefined : Number(row.rating),
+      parentId: row.parent_id || undefined,
+      likes: (likesResult.data || [])
+        .filter((like: any) => like.discussion_id === row.id)
+        .map((like: any) => like.user_id),
+      createdAt: row.created_at
+    }));
+
+    this.discussionCache.set(`${media.media_type}:${media.id}`, entries);
+    dispatchSocialUpdate();
+    return entries;
   }
 
-  static acceptFriendRequest(requestId: string) {
-    const requests = this.getFriendRequests();
-    const request = requests.find((item) => item.id === requestId);
-    if (!request) return;
-    request.status = 'accepted';
-    write(KEYS.requests, requests);
+  static async sendFriendRequest(target: SocialUser, _profile?: UserProfile) {
+    const userId = this.requireUser();
+    const { error } = await supabase.from('friend_requests').insert({
+      sender_id: userId,
+      receiver_id: target.id,
+      status: 'pending'
+    });
+    if (error) throw error;
+    await this.loadAll();
+  }
 
-    const friends = this.getFriends();
-    if (!friends.some((friend) => friend.user.id === request.fromUser.id)) {
-      friends.unshift({ id: makeId('friend'), user: request.fromUser, createdAt: new Date().toISOString() });
-      write(KEYS.friends, friends);
+  static async acceptFriendRequest(requestId: string) {
+    this.requireUser();
+    const { error } = await supabase
+      .from('friend_requests')
+      .update({ status: 'accepted' })
+      .eq('id', requestId);
+    if (error) throw error;
+    await this.loadAll();
+  }
+
+  static async declineFriendRequest(requestId: string) {
+    this.requireUser();
+    const { error } = await supabase
+      .from('friend_requests')
+      .update({ status: 'rejected' })
+      .eq('id', requestId);
+    if (error) throw error;
+    await this.loadAll();
+  }
+
+  static async removeFriend(userId: string) {
+    const currentUserId = this.requireUser();
+    const { error } = await supabase
+      .from('friendships')
+      .delete()
+      .or(
+        `and(user_a_id.eq.${currentUserId},user_b_id.eq.${userId}),and(user_a_id.eq.${userId},user_b_id.eq.${currentUserId})`
+      );
+    if (error) throw error;
+    await this.loadAll();
+  }
+
+  static async markNotificationRead(id: string) {
+    const previous = this.cache.notifications;
+    this.cache.notifications = previous.map((item) => item.id === id ? { ...item, read: true } : item);
+    dispatchSocialUpdate();
+
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+    if (error) {
+      this.cache.notifications = previous;
+      dispatchSocialUpdate();
+      throw error;
     }
-    this.pushNotification({
-      category: 'friendship',
-      title: 'Amizade confirmada',
-      description: `Você e ${request.fromUser.displayName} agora são amigos.`,
-      actor: request.fromUser,
-      targetPath: '/comunidade?tab=friends'
-    });
   }
 
-  static declineFriendRequest(requestId: string) {
-    const requests = this.getFriendRequests().map((request) =>
-      request.id === requestId ? { ...request, status: 'declined' as const } : request
-    );
-    write(KEYS.requests, requests);
+  static async markAllNotificationsRead() {
+    const userId = this.requireUser();
+    const previous = this.cache.notifications;
+    this.cache.notifications = previous.map((item) => ({ ...item, read: true }));
+    dispatchSocialUpdate();
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) {
+      this.cache.notifications = previous;
+      dispatchSocialUpdate();
+      throw error;
+    }
   }
 
-  static removeFriend(userId: string) {
-    write(KEYS.friends, this.getFriends().filter((friend) => friend.user.id !== userId));
+  static async pushNotification(_input: Omit<SocialNotification, 'id' | 'createdAt' | 'read'>) {
+    // As notificações são geradas por triggers seguros no banco.
   }
 
-  static markNotificationRead(id: string) {
-    write(KEYS.notifications, this.getNotifications().map((item) => (item.id === id ? { ...item, read: true } : item)));
-  }
-
-  static markAllNotificationsRead() {
-    write(KEYS.notifications, this.getNotifications().map((item) => ({ ...item, read: true })));
-  }
-
-  static pushNotification(input: Omit<SocialNotification, 'id' | 'createdAt' | 'read'>) {
-    const notifications = this.getNotifications();
-    notifications.unshift({ ...input, id: makeId('notification'), createdAt: new Date().toISOString(), read: false });
-    write(KEYS.notifications, notifications.slice(0, 80));
-  }
-
-  static sendRecommendation(
+  static async sendRecommendation(
     media: MediaItem,
     recipients: Array<{ id: string; name: string; type: 'user' | 'group' }>,
     message: string,
-    profile: UserProfile
+    _profile?: UserProfile
   ) {
-    const recommendations = this.getRecommendations();
-    const sender = currentUser(profile);
-    for (const recipient of recipients) {
-      recommendations.unshift({
-        id: makeId('recommendation'),
-        sender,
-        recipientId: recipient.id,
-        recipientType: recipient.type,
-        recipientName: recipient.name,
-        media: safeMedia(media)!,
-        message: message.trim() || undefined,
-        status: 'sent',
-        createdAt: new Date().toISOString()
-      });
-    }
-    write(KEYS.recommendations, recommendations.slice(0, 100));
-    recipients
-      .filter((recipient) => recipient.type === 'group')
-      .forEach((recipient) => this.addMediaToGroup(recipient.id, media));
+    const userId = this.requireUser();
+    if (recipients.length === 0) return;
 
-    const activities = this.getActivities();
-    activities.unshift({
-      id: makeId('activity'),
-      actor: sender,
-      action: 'recommended',
-      description: `recomendou ${media.title || media.name} para ${recipients.map((recipient) => recipient.name).join(', ')}`,
-      media: safeMedia(media),
-      createdAt: new Date().toISOString()
-    });
-    write(KEYS.activities, activities.slice(0, 100));
-  }
+    const rows = recipients.map((recipient) => ({
+      sender_id: userId,
+      recipient_user_id: recipient.type === 'user' ? recipient.id : null,
+      recipient_group_id: recipient.type === 'group' ? recipient.id : null,
+      tmdb_id: media.id,
+      media_type: media.media_type,
+      title: media.title || media.name || 'Título VIDARIX',
+      poster_path: media.poster_path,
+      media_data: media,
+      message: message.trim() || null,
+      status: 'sent'
+    }));
 
-  static updateRecommendationStatus(id: string, status: MediaRecommendation['status']) {
-    write(
-      KEYS.recommendations,
-      this.getRecommendations().map((recommendation) => (recommendation.id === id ? { ...recommendation, status } : recommendation))
+    const { error } = await supabase.from('recommendations').insert(rows);
+    if (error) throw error;
+
+    await Promise.all(
+      recipients
+        .filter((recipient) => recipient.type === 'group')
+        .map((recipient) => this.addMediaToGroup(recipient.id, media))
     );
+    await this.loadAll();
   }
 
-  static createGroup(input: { name: string; description: string; privacy: 'public' | 'private' }, profile: UserProfile) {
-    const owner = currentUser(profile);
-    const groups = this.getGroups();
-    groups.unshift({
-      id: makeId('group'),
+  static async updateRecommendationStatus(id: string, status: MediaRecommendation['status']) {
+    this.requireUser();
+    const payload: Record<string, unknown> = { status };
+    if (status === 'viewed' || status === 'saved') payload.viewed_at = new Date().toISOString();
+
+    const { error } = await supabase.from('recommendations').update(payload).eq('id', id);
+    if (error) throw error;
+    await this.loadRecommendations();
+    this.cache.activities = this.buildActivities();
+    dispatchSocialUpdate();
+  }
+
+  static async createGroup(
+    input: { name: string; description: string; privacy: 'public' | 'private' },
+    _profile?: UserProfile
+  ) {
+    const userId = this.requireUser();
+    const { error } = await supabase.from('groups').insert({
+      owner_id: userId,
       name: input.name.trim(),
-      description: input.description.trim(),
-      privacy: input.privacy,
-      ownerId: owner.id,
-      memberIds: [owner.id],
-      members: [owner],
-      messages: [],
-      watchlist: [],
-      createdAt: new Date().toISOString()
+      description: input.description.trim() || null,
+      privacy: input.privacy
     });
-    write(KEYS.groups, groups);
-    this.pushNotification({
-      category: 'group',
-      title: 'Grupo criado',
-      description: `O grupo ${input.name.trim()} está pronto para receber membros.`,
-      targetPath: '/comunidade?tab=groups'
-    });
+    if (error) throw error;
+    await this.loadAll();
   }
 
-  static joinGroup(groupId: string, profile: UserProfile) {
-    const user = currentUser(profile);
-    const groups = this.getGroups().map((group) => {
-      if (group.id !== groupId || group.memberIds.includes(user.id)) return group;
-      return { ...group, memberIds: [...group.memberIds, user.id], members: [...group.members, user] };
+  static async joinGroup(groupId: string, _profile?: UserProfile) {
+    const userId = this.requireUser();
+    const { error } = await supabase.from('group_members').insert({
+      group_id: groupId,
+      user_id: userId,
+      role: 'member',
+      status: 'active'
     });
-    write(KEYS.groups, groups);
+    if (error && error.code !== '23505') throw error;
+    await this.loadAll();
   }
 
-  static leaveGroup(groupId: string, profile: UserProfile) {
-    const groups = this.getGroups().map((group) =>
-      group.id === groupId
-        ? {
-            ...group,
-            memberIds: group.memberIds.filter((id) => id !== profile.id),
-            members: group.members.filter((member) => member.id !== profile.id)
-          }
-        : group
-    );
-    write(KEYS.groups, groups);
+  static async leaveGroup(groupId: string, _profile?: UserProfile) {
+    const userId = this.requireUser();
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    await this.loadAll();
   }
 
-  static sendGroupMessage(groupId: string, text: string, profile: UserProfile, media?: MediaItem) {
+  static async sendGroupMessage(groupId: string, text: string, _profile?: UserProfile, media?: MediaItem) {
+    const userId = this.requireUser();
     if (!text.trim() && !media) return;
-    const author = currentUser(profile);
-    const message: CommunityMessage = {
-      id: makeId('group_message'),
-      author,
-      text: text.trim(),
-      media: safeMedia(media),
-      createdAt: new Date().toISOString()
-    };
-    const groups = this.getGroups().map((group) =>
-      group.id === groupId ? { ...group, messages: [...group.messages, message] } : group
-    );
-    write(KEYS.groups, groups);
-  }
 
-  static addMediaToGroup(groupId: string, media: MediaItem) {
-    const groups = this.getGroups().map((group) => {
-      if (group.id !== groupId || group.watchlist.some((item) => item.id === media.id && item.media_type === media.media_type)) return group;
-      return { ...group, watchlist: [...group.watchlist, safeMedia(media)!] };
+    const { error } = await supabase.from('group_messages').insert({
+      group_id: groupId,
+      sender_id: userId,
+      body: text.trim() || null,
+      media_data: media || null
     });
-    write(KEYS.groups, groups);
+    if (error) throw error;
+    await this.loadGroups();
+    dispatchSocialUpdate();
   }
 
-  static ensureConversation(friend: SocialUser): string {
-    const conversations = this.getConversations();
-    const existing = conversations.find((conversation) => conversation.participant.id === friend.id);
+  static async addMediaToGroup(groupId: string, media: MediaItem) {
+    const userId = this.requireUser();
+    const { error } = await supabase.from('group_watchlist').upsert(
+      {
+        group_id: groupId,
+        added_by: userId,
+        tmdb_id: media.id,
+        media_type: media.media_type,
+        title: media.title || media.name || 'Título VIDARIX',
+        poster_path: media.poster_path,
+        media_data: media
+      },
+      { onConflict: 'group_id,tmdb_id,media_type', ignoreDuplicates: true }
+    );
+    if (error) throw error;
+  }
+
+  static async ensureConversation(friend: SocialUser): Promise<string> {
+    this.requireUser();
+    const existing = this.cache.conversations.find((conversation) => conversation.participant.id === friend.id);
     if (existing) return existing.id;
-    const conversation: DirectConversation = {
-      id: makeId('conversation'),
-      participant: friend,
-      messages: [],
-      updatedAt: new Date().toISOString()
-    };
-    conversations.unshift(conversation);
-    write(KEYS.conversations, conversations);
-    return conversation.id;
+
+    const { data, error } = await supabase.rpc('get_or_create_direct_conversation', {
+      other_user_id: friend.id
+    });
+    if (error) throw error;
+
+    await this.loadConversations();
+    dispatchSocialUpdate();
+    return String(data);
   }
 
-  static sendDirectMessage(friend: SocialUser, text: string, profile: UserProfile, media?: MediaItem) {
+  static async sendDirectMessage(friend: SocialUser, text: string, _profile?: UserProfile, media?: MediaItem) {
+    const userId = this.requireUser();
     if (!text.trim() && !media) return;
-    const conversations = this.getConversations();
-    const author = currentUser(profile);
-    const message: CommunityMessage = {
-      id: makeId('message'),
-      author,
-      text: text.trim(),
-      media: safeMedia(media),
-      createdAt: new Date().toISOString()
-    };
-    const existing = conversations.find((conversation) => conversation.participant.id === friend.id);
-    if (existing) {
-      existing.messages.push(message);
-      existing.updatedAt = message.createdAt;
-    } else {
-      conversations.unshift({
-        id: makeId('conversation'),
-        participant: friend,
-        messages: [message],
-        updatedAt: message.createdAt
-      });
-    }
-    write(KEYS.conversations, conversations);
+
+    const conversationId = await this.ensureConversation(friend);
+    const { error } = await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: userId,
+      body: text.trim() || null,
+      media_data: media || null
+    });
+    if (error) throw error;
+
+    await this.loadConversations();
+    await this.loadNotifications();
+    dispatchSocialUpdate();
   }
 
-  static addTitleDiscussion(
+  static async addTitleDiscussion(
     media: MediaItem,
     input: { text: string; kind: TitleDiscussionEntry['kind']; spoiler?: boolean; rating?: number },
-    profile: UserProfile
+    _profile?: UserProfile
   ) {
+    const userId = this.requireUser();
     if (!input.text.trim()) return;
-    const entries = read<TitleDiscussionEntry[]>(KEYS.discussions, []);
-    const entry: TitleDiscussionEntry = {
-      id: makeId('discussion'),
-      mediaKey: `${media.media_type}:${media.id}`,
-      author: currentUser(profile),
-      text: input.text.trim(),
-      kind: input.kind,
-      spoiler: Boolean(input.spoiler),
-      rating: input.rating,
-      likes: [],
-      createdAt: new Date().toISOString()
-    };
-    entries.push(entry);
-    write(KEYS.discussions, entries);
 
-    const activities = this.getActivities();
-    activities.unshift({
-      id: makeId('activity'),
-      actor: currentUser(profile),
-      action: 'commented',
-      description: `comentou sobre ${media.title || media.name}`,
-      media: safeMedia(media),
-      createdAt: entry.createdAt
+    const { error } = await supabase.from('title_discussions').insert({
+      user_id: userId,
+      tmdb_id: media.id,
+      media_type: media.media_type,
+      kind: input.kind,
+      body: input.text.trim(),
+      rating: input.rating ?? null,
+      spoiler: Boolean(input.spoiler)
     });
-    write(KEYS.activities, activities.slice(0, 100));
+    if (error) throw error;
+    await this.loadTitleDiscussion(media);
   }
 
-  static toggleDiscussionLike(entryId: string, profile: UserProfile) {
-    const entries = read<TitleDiscussionEntry[]>(KEYS.discussions, []).map((entry) => {
-      if (entry.id !== entryId) return entry;
-      const likes = entry.likes || [];
-      return {
-        ...entry,
-        likes: likes.includes(profile.id) ? likes.filter((id) => id !== profile.id) : [...likes, profile.id]
-      };
-    });
-    write(KEYS.discussions, entries);
+  static async toggleDiscussionLike(entryId: string, profile?: UserProfile) {
+    const userId = this.requireUser();
+    const entry = [...this.discussionCache.values()].flat().find((item) => item.id === entryId);
+    const liked = Boolean(entry?.likes?.includes(profile?.id || userId));
+
+    if (liked) {
+      const { error } = await supabase
+        .from('discussion_likes')
+        .delete()
+        .eq('discussion_id', entryId)
+        .eq('user_id', userId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('discussion_likes').insert({
+        discussion_id: entryId,
+        user_id: userId
+      });
+      if (error && error.code !== '23505') throw error;
+    }
+
+    const mediaKey = entry?.mediaKey;
+    if (mediaKey) {
+      const [mediaType, tmdbId] = mediaKey.split(':');
+      await this.loadTitleDiscussion({
+        id: Number(tmdbId),
+        title: '',
+        media_type: mediaType as 'movie' | 'tv',
+        overview: '',
+        poster_path: null,
+        backdrop_path: null,
+        vote_average: 0,
+        genre_ids: []
+      });
+    }
   }
 }

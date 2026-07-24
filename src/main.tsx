@@ -6,6 +6,7 @@ import './vidarix-refinement.css';
 import './vidarix-brand-layout.css';
 import './vidarix-social.css';
 import './vidarix-mobile-community.css';
+import './vidarix-account-onboarding.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

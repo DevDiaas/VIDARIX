@@ -1,9 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { UserProfile } from '../types';
-import { StorageService, DEFAULT_USER_PROFILE } from '../services/storageService';
+import { DEFAULT_USER_PROFILE, StorageService } from '../services/storageService';
 import { SupabaseService } from '../services/supabaseService';
+
+interface AuthActionResult {
+  error?: string;
+  requiresEmailConfirmation?: boolean;
+}
+
+interface PendingRegistration {
+  email: string;
+  fullName: string;
+  username: string;
+  preferences: Partial<UserProfile>;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -11,12 +23,18 @@ interface AuthContextType {
   profile: UserProfile;
   isLoading: boolean;
   isAuthenticated: boolean;
-  signUp: (email: string, password: string, fullName: string, username: string, preferences?: Partial<UserProfile>) => Promise<{ error?: string }>;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signInWithGoogle: () => Promise<{ error?: string }>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    username: string,
+    preferences?: Partial<UserProfile>
+  ) => Promise<AuthActionResult>;
+  signIn: (email: string, password: string) => Promise<AuthActionResult>;
+  signInWithGoogle: () => Promise<AuthActionResult>;
   signOut: () => Promise<void>;
-  resetPasswordForEmail: (email: string) => Promise<{ error?: string }>;
-  updatePassword: (newPassword: string) => Promise<{ error?: string }>;
+  resetPasswordForEmail: (email: string) => Promise<AuthActionResult>;
+  updatePassword: (newPassword: string) => Promise<AuthActionResult>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updated: Partial<UserProfile>) => Promise<void>;
   uploadAvatar: (file: Blob | File) => Promise<{ avatarUrl?: string; error?: string }>;
@@ -24,90 +42,186 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const PENDING_REGISTRATION_KEY = 'vidarix_pending_registration';
+
+const translateAuthError = (message: string): string => {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (normalized.includes('email not confirmed')) return 'Confirme seu e-mail antes de entrar.';
+  if (normalized.includes('user already registered')) return 'Já existe uma conta cadastrada com este e-mail.';
+  if (normalized.includes('password should be at least')) return 'A senha deve conter pelo menos 6 caracteres.';
+  if (normalized.includes('email rate limit exceeded')) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if (normalized.includes('signup is disabled')) return 'O cadastro está temporariamente desativado.';
+  if (normalized.includes('network') || normalized.includes('fetch')) return 'Não foi possível conectar ao Supabase. Verifique sua internet.';
+
+  return message;
+};
+
+const savePendingRegistration = (pending: PendingRegistration) => {
+  try {
+    localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify(pending));
+  } catch {
+    // O cadastro continua funcionando mesmo sem armazenamento local.
+  }
+};
+
+const getPendingRegistration = (): PendingRegistration | null => {
+  try {
+    const value = localStorage.getItem(PENDING_REGISTRATION_KEY);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+};
+
+const clearPendingRegistration = () => {
+  try {
+    localStorage.removeItem(PENDING_REGISTRATION_KEY);
+  } catch {
+    // Sem ação necessária.
+  }
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile>(StorageService.getProfile());
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 1. Initial Auth and Profile Load & Realtime Auth Listener
+  const loadUserProfile = async (userId: string, authUser?: User | null) => {
+    try {
+      const fetched = await SupabaseService.fetchProfile(userId);
+
+      if (fetched) {
+        const completeProfile: UserProfile = {
+          ...fetched,
+          email: authUser?.email || fetched.email || '',
+          isAuthenticated: true
+        };
+        setProfile(completeProfile);
+        StorageService.saveProfile(completeProfile);
+        return;
+      }
+
+      const local = StorageService.getProfile();
+      const fallbackProfile: UserProfile = {
+        ...local,
+        id: userId,
+        email: authUser?.email || local.email || '',
+        isAuthenticated: true
+      };
+      setProfile(fallbackProfile);
+      StorageService.saveProfile(fallbackProfile);
+    } catch (error) {
+      console.error('Erro ao carregar perfil:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const applyPendingRegistration = async (authUser: User) => {
+    const pending = getPendingRegistration();
+    if (!pending) return;
+
+    if (authUser.email && pending.email.toLowerCase() !== authUser.email.toLowerCase()) return;
+
+    try {
+      await SupabaseService.saveProfile(authUser.id, {
+        fullName: pending.fullName,
+        displayName: pending.fullName.split(' ')[0] || pending.fullName,
+        name: pending.fullName,
+        username: pending.username,
+        email: pending.email,
+        ...pending.preferences,
+        onboardingCompleted: true,
+        isAuthenticated: true
+      });
+      clearPendingRegistration();
+    } catch (error) {
+      console.warn('Não foi possível aplicar todas as preferências pendentes:', error);
+    }
+  };
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setIsLoading(false);
       return;
     }
 
-    // Get current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadUserProfile(session.user.id);
-      } else {
-        setIsLoading(false);
-      }
-    });
+    let mounted = true;
 
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+    const initialize = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error('Erro ao recuperar sessão:', error);
+        setIsLoading(false);
+        return;
+      }
+
+      const currentSession = data.session;
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
-      if (event === 'SIGNED_IN' && currentSession?.user) {
-        setIsLoading(true);
-        await loadUserProfile(currentSession.user.id);
-        // Sync local guest data if needed
-        await SupabaseService.migrateGuestDataToUser(currentSession.user.id);
+      if (currentSession?.user) {
+        await applyPendingRegistration(currentSession.user);
+        await loadUserProfile(currentSession.user.id, currentSession.user);
+      } else {
         setIsLoading(false);
-      } else if (event === 'SIGNED_OUT') {
-        setProfile(DEFAULT_USER_PROFILE);
-        StorageService.saveProfile(DEFAULT_USER_PROFILE);
-        setIsLoading(false);
-      } else if (currentSession?.user) {
-        await loadUserProfile(currentSession.user.id);
       }
+    };
+
+    initialize();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+
+      window.setTimeout(async () => {
+        if (!mounted) return;
+
+        if (event === 'SIGNED_OUT') {
+          setProfile(DEFAULT_USER_PROFILE);
+          StorageService.saveProfile(DEFAULT_USER_PROFILE);
+          setIsLoading(false);
+          return;
+        }
+
+        if (currentSession?.user) {
+          setIsLoading(true);
+          await applyPendingRegistration(currentSession.user);
+          await SupabaseService.migrateGuestDataToUser(currentSession.user.id);
+          await loadUserProfile(currentSession.user.id, currentSession.user);
+        }
+      }, 0);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  // Helper to fetch and merge user profile
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const fetched = await SupabaseService.fetchProfile(userId);
-      if (fetched) {
-        setProfile(fetched);
-        StorageService.saveProfile(fetched);
-      } else {
-        // Fallback: create basic profile structure
-        const local = StorageService.getProfile();
-        const fallbackProfile: UserProfile = {
-          ...local,
-          id: userId,
-          isAuthenticated: true
-        };
-        setProfile(fallbackProfile);
-        StorageService.saveProfile(fallbackProfile);
-      }
-    } catch (err) {
-      console.error('Error loading profile in AuthContext:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    username: string,
+    preferences: Partial<UserProfile> = {}
+  ): Promise<AuthActionResult> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
 
-  // Sign Up with email, password, full name and username
-  const signUp = async (email: string, password: string, fullName: string, username: string, preferences: Partial<UserProfile> = {}) => {
     if (!isSupabaseConfigured) {
-      // Local fallback mode for offline testing
-      const cleanUsername = username.toLowerCase().replace(/[^a-z0-9._]/g, '');
       const newProfile: UserProfile = {
         ...profile,
         id: `guest_${Date.now()}`,
-        email,
+        email: cleanEmail,
         fullName,
         displayName: fullName.split(' ')[0] || fullName,
         name: fullName,
@@ -120,52 +234,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {};
     }
 
-    // Check username availability
-    const checkRes = await SupabaseService.checkUsernameAvailability(username);
-    if (!checkRes.available) {
-      return { error: checkRes.error || 'O nome de usuário já está em uso.' };
-    }
-
-    const cleanUsername = username.trim().toLowerCase();
+    savePendingRegistration({
+      email: cleanEmail,
+      fullName,
+      username: cleanUsername,
+      preferences
+    });
 
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: cleanEmail,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/inicio`,
         data: {
           full_name: fullName,
           display_name: fullName.split(' ')[0] || fullName,
-          username: cleanUsername,
+          username: cleanUsername
         }
       }
     });
 
     if (error) {
-      return { error: error.message };
+      clearPendingRegistration();
+      return { error: translateAuthError(error.message) };
     }
 
-    if (data.user) {
-      // Upsert profile directly as backup in case trigger takes a moment
+    if (data.user && data.session) {
       try {
-        await SupabaseService.saveProfile(data.user.id, {
-          fullName,
-          displayName: fullName.split(' ')[0] || fullName,
-          name: fullName,
-          username: cleanUsername,
-          email,
-          ...preferences
-        });
+        await applyPendingRegistration(data.user);
         await SupabaseService.migrateGuestDataToUser(data.user.id);
-      } catch (err) {
-        console.warn('Profile direct save fallback warning:', err);
+        await loadUserProfile(data.user.id, data.user);
+      } catch (profileError) {
+        console.warn('A conta foi criada, mas o perfil será sincronizado no próximo acesso:', profileError);
       }
     }
 
-    return {};
+    return { requiresEmailConfirmation: Boolean(data.user && !data.session) };
   };
 
-  // Sign In
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string): Promise<AuthActionResult> => {
     if (!isSupabaseConfigured) {
       const nameFromEmail = email.split('@')[0] || 'Cinéfilo VIDARIX';
       const newProfile: UserProfile = {
@@ -183,19 +290,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password
     });
 
-    if (error) {
-      return { error: error.message };
-    }
-
-    return {};
+    return error ? { error: translateAuthError(error.message) } : {};
   };
 
-  // Sign In with Google
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<AuthActionResult> => {
     if (!isSupabaseConfigured) {
       return { error: 'Supabase não configurado para login social.' };
     }
@@ -203,70 +305,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: `${window.location.origin}/inicio`
       }
     });
 
-    if (error) {
-      return { error: error.message };
-    }
-
-    return {};
+    return error ? { error: translateAuthError(error.message) } : {};
   };
 
-  // Sign Out
   const signOut = async () => {
     if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) console.error('Erro ao sair da conta:', error);
     }
+
     setProfile(DEFAULT_USER_PROFILE);
     StorageService.saveProfile(DEFAULT_USER_PROFILE);
     setUser(null);
     setSession(null);
   };
 
-  // Reset Password for Email
-  const resetPasswordForEmail = async (email: string) => {
-    if (!isSupabaseConfigured) {
-      return { error: 'Supabase não configurado.' };
-    }
+  const resetPasswordForEmail = async (email: string): Promise<AuthActionResult> => {
+    if (!isSupabaseConfigured) return { error: 'Supabase não configurado.' };
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${window.location.origin}/redefinir-senha`
     });
 
-    if (error) {
-      return { error: error.message };
-    }
-
-    return {};
+    return error ? { error: translateAuthError(error.message) } : {};
   };
 
-  // Update Password
-  const updatePassword = async (newPassword: string) => {
-    if (!isSupabaseConfigured) {
-      return { error: 'Supabase não configurado.' };
-    }
+  const updatePassword = async (newPassword: string): Promise<AuthActionResult> => {
+    if (!isSupabaseConfigured) return { error: 'Supabase não configurado.' };
 
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-
-    if (error) {
-      return { error: error.message };
-    }
-
-    return {};
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return error ? { error: translateAuthError(error.message) } : {};
   };
 
-  // Refresh Profile
   const refreshProfile = async () => {
-    if (user) {
-      await loadUserProfile(user.id);
-    }
+    if (user) await loadUserProfile(user.id, user);
   };
 
-  // Update Profile
   const updateProfile = async (updated: Partial<UserProfile>) => {
     const nextProfile = { ...profile, ...updated };
     setProfile(nextProfile);
@@ -277,41 +355,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Upload Avatar
   const uploadAvatar = async (file: Blob | File) => {
     if (!user || !isSupabaseConfigured) {
-      // Local fallback avatar preview
       const reader = new FileReader();
       return new Promise<{ avatarUrl?: string; error?: string }>((resolve) => {
-        reader.onload = (e) => {
-          const url = e.target?.result as string;
+        reader.onload = (event) => {
+          const url = event.target?.result as string;
           updateProfile({ photoURL: url, avatar: url });
           resolve({ avatarUrl: url });
         };
+        reader.onerror = () => resolve({ error: 'Não foi possível ler a imagem.' });
         reader.readAsDataURL(file);
       });
     }
 
     try {
       const { avatarUrl } = await SupabaseService.uploadAvatar(user.id, file);
-      const updatedProfileData = { photoURL: avatarUrl, avatar: avatarUrl };
-      setProfile((prev) => ({ ...prev, ...updatedProfileData }));
-      StorageService.saveProfile({ ...profile, ...updatedProfileData });
+      const updatedProfile = { ...profile, photoURL: avatarUrl, avatar: avatarUrl };
+      setProfile(updatedProfile);
+      StorageService.saveProfile(updatedProfile);
       return { avatarUrl };
-    } catch (err: any) {
-      return { error: err.message || 'Erro ao enviar o avatar.' };
+    } catch (error: any) {
+      return { error: error?.message || 'Erro ao enviar o avatar.' };
     }
   };
 
-  // Remove Avatar
   const removeAvatar = async () => {
-    if (user && isSupabaseConfigured) {
-      await SupabaseService.removeAvatar(user.id);
-    }
+    if (user && isSupabaseConfigured) await SupabaseService.removeAvatar(user.id);
 
-    const updatedProfileData = { photoURL: null, avatar: '' };
-    setProfile((prev) => ({ ...prev, ...updatedProfileData }));
-    StorageService.saveProfile({ ...profile, ...updatedProfileData });
+    const updatedProfile = { ...profile, photoURL: null, avatar: '' };
+    setProfile(updatedProfile);
+    StorageService.saveProfile(updatedProfile);
     return {};
   };
 
@@ -322,7 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         profile,
         isLoading,
-        isAuthenticated: profile.isAuthenticated || Boolean(user),
+        isAuthenticated: isSupabaseConfigured ? Boolean(user) : profile.isAuthenticated === true,
         signUp,
         signIn,
         signInWithGoogle,
@@ -342,8 +416,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth deve ser utilizado dentro de um AuthProvider');
-  }
+  if (!context) throw new Error('useAuth deve ser utilizado dentro de um AuthProvider');
   return context;
 };

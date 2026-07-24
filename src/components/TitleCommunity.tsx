@@ -22,8 +22,17 @@ export const TitleCommunity: React.FC<TitleCommunityProps> = ({ media, userProfi
 
   const refresh = () => setEntries(SocialService.getTitleDiscussion(media));
 
+  const loadEntries = async () => {
+    try {
+      const loaded = await SocialService.loadTitleDiscussion(media);
+      setEntries(loaded);
+    } catch (error) {
+      console.error('Erro ao carregar comunidade do título:', error);
+    }
+  };
+
   useEffect(() => {
-    refresh();
+    void loadEntries();
     const handler = () => refresh();
     window.addEventListener('vidarix-social-updated', handler);
     return () => window.removeEventListener('vidarix-social-updated', handler);
@@ -31,12 +40,20 @@ export const TitleCommunity: React.FC<TitleCommunityProps> = ({ media, userProfi
 
   const filtered = useMemo(() => entries.filter((entry) => entry.kind === activeTab), [entries, activeTab]);
 
-  const handleSubmit = () => {
-    SocialService.addTitleDiscussion(media, { text, kind: activeTab, spoiler, rating: activeTab === 'review' ? rating : undefined }, userProfile);
-    setText('');
-    setSpoiler(false);
-    setRating(0);
-    refresh();
+  const handleSubmit = async () => {
+    try {
+      await SocialService.addTitleDiscussion(
+        media,
+        { text, kind: activeTab, spoiler, rating: activeTab === 'review' ? rating : undefined },
+        userProfile
+      );
+      setText('');
+      setSpoiler(false);
+      setRating(0);
+      refresh();
+    } catch (error) {
+      console.error('Erro ao publicar na comunidade do título:', error);
+    }
   };
 
   const tabs = [
@@ -88,7 +105,7 @@ export const TitleCommunity: React.FC<TitleCommunityProps> = ({ media, userProfi
             <ShieldAlert /> Contém spoiler
           </label>
           <span>{text.length}/500</span>
-          <button type="button" className="button-primary" onClick={handleSubmit} disabled={!text.trim() || (activeTab === 'review' && rating === 0)}>
+          <button type="button" className="button-primary" onClick={() => void handleSubmit()} disabled={!text.trim() || (activeTab === 'review' && rating === 0)}>
             <Send /> Publicar
           </button>
         </div>
@@ -122,7 +139,7 @@ export const TitleCommunity: React.FC<TitleCommunityProps> = ({ media, userProfi
                     <p>{entry.text}</p>
                   )}
                   <footer>
-                    <button type="button" className={liked ? 'is-liked' : ''} onClick={() => SocialService.toggleDiscussionLike(entry.id, userProfile)}>
+                    <button type="button" className={liked ? 'is-liked' : ''} onClick={() => void SocialService.toggleDiscussionLike(entry.id, userProfile).catch((error) => console.error('Erro ao curtir discussão:', error))}>
                       <Heart /> {entry.likes?.length || 0}
                     </button>
                   </footer>

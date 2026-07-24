@@ -13,19 +13,29 @@ import {
   Check,
   ChevronRight,
   AlertTriangle,
+  Cloud,
+  LogIn,
+  LogOut,
+  UserPlus,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { StorageService } from '../services/storageService';
 
 interface SettingsPageProps {
   userProfile: UserProfile;
+  isAuthenticated: boolean;
   onUpdateProfile: (updated: Partial<UserProfile>) => void;
+  onNavigate: (path: string) => void;
+  onLogout: () => void | Promise<void>;
   onAddToast?: (title: string, desc?: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   userProfile,
+  isAuthenticated,
   onUpdateProfile,
+  onNavigate,
+  onLogout,
   onAddToast
 }) => {
   const [publicProfile, setPublicProfile] = useState(userProfile.privacy?.publicProfile !== false);
@@ -102,6 +112,59 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <p className="text-xs sm:text-sm text-[#A7A9B4] mt-1">
           Gerencie a privacidade da sua conta, efeitos de som, experiência visual e armazenamento de dados.
         </p>
+      </div>
+
+      {/* CONTA E SINCRONIZAÇÃO */}
+      <div className="bg-[#10121A] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-4">
+        <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+          <Cloud className="w-5 h-5 text-[#8B5CF6]" />
+          <span>Conta &amp; sincronização</span>
+        </h2>
+
+        <div className="rounded-2xl bg-[#151823] border border-white/5 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="font-bold text-white">
+                {isAuthenticated ? 'Conta conectada ao Supabase' : 'Você está usando a VIDARIX como visitante'}
+              </p>
+              <p className="text-[#A7A9B4] text-xs mt-1 leading-relaxed">
+                {isAuthenticated
+                  ? `Perfil, preferências e listas podem ser sincronizados. ${userProfile.email || ''}`
+                  : 'Entre ou crie uma conta para manter seus dados disponíveis em outros dispositivos.'}
+              </p>
+            </div>
+
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-2.5 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair da conta
+              </button>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/entrar')}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/10 transition"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/criar-conta')}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#7458C7] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#8568d8] transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Criar conta
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* SECTION 1: Privacidade e Perfil Público */}
@@ -218,13 +281,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="bg-[#10121A] border border-white/10 rounded-3xl p-6 sm:p-8 space-y-4">
         <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <Shield className="w-5 h-5 text-emerald-400" />
-          <span>Perfil local &amp; dispositivo</span>
+          <span>Conta, perfil &amp; dispositivo</span>
         </h2>
 
         <div className="p-4 rounded-2xl bg-[#151823] border border-white/5 space-y-3">
           <div className="flex items-center justify-between gap-4 text-xs">
             <span className="text-[#A7A9B4]">Modo de uso:</span>
-            <span className="font-bold text-white">Perfil local VIDARIX</span>
+            <span className="font-bold text-white">{isAuthenticated ? 'Conta Supabase sincronizada' : 'Perfil local de visitante'}</span>
           </div>
           <div className="flex items-center justify-between gap-4 text-xs">
             <span className="text-[#A7A9B4]">Dispositivo atual:</span>
@@ -235,7 +298,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
           <div className="pt-3 border-t border-white/10">
             <p className="text-xs leading-relaxed text-[#A7A9B4]">
-              Suas listas, preferências e histórico permanecem salvos neste dispositivo. Você pode gerenciar ou limpar esses dados na seção abaixo.
+              {isAuthenticated ? 'Seus dados principais podem ser sincronizados com sua conta. Informações temporárias também permanecem disponíveis neste dispositivo.' : 'Suas listas, preferências e histórico permanecem salvos somente neste dispositivo até você entrar ou criar uma conta.'}
             </p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { MediaItem, MediaType, Genre } from '../types';
 import { MOCK_MEDIA_ITEMS } from '../data/mockData';
 import { TMDB_GENRES } from '../data/genres';
@@ -91,22 +92,50 @@ export function getBackdropUrl(path: string | null, size: string = 'w1280'): str
   return `${IMAGE_BASE_URL}${size}${path}`;
 }
 
+let hasLoggedCatalogError = false;
+
 async function fetchFromProxy(endpoint: string, params: Record<string, string> = {}) {
+  if (!isSupabaseConfigured) {
+    if (!hasLoggedCatalogError && import.meta.env.DEV) {
+      console.warn(
+        'Catálogo remoto indisponível: configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.',
+      );
+      hasLoggedCatalogError = true;
+    }
+    return null;
+  }
+
   try {
-    const url = new URL('/api/tmdb/proxy', window.location.origin);
-    url.searchParams.set('endpoint', endpoint);
-    Object.entries(params).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        url.searchParams.set(key, val);
-      }
+    const { data, error } = await supabase.functions.invoke('tmdb-proxy', {
+      body: {
+        endpoint,
+        params,
+      },
     });
 
-    const res = await fetch(url.toString());
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.fallback) return null;
+    if (error) {
+      if (!hasLoggedCatalogError) {
+        console.error('Falha ao consultar a Edge Function tmdb-proxy:', error.message);
+        hasLoggedCatalogError = true;
+      }
+      return null;
+    }
+
+    if (!data || data.error) {
+      if (!hasLoggedCatalogError && data?.error) {
+        console.error('Erro retornado pelo backend do catálogo:', data.error);
+        hasLoggedCatalogError = true;
+      }
+      return null;
+    }
+
+    hasLoggedCatalogError = false;
     return data;
-  } catch {
+  } catch (error) {
+    if (!hasLoggedCatalogError) {
+      console.error('Erro inesperado ao consultar o catálogo:', error);
+      hasLoggedCatalogError = true;
+    }
     return null;
   }
 }

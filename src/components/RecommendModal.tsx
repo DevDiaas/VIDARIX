@@ -31,7 +31,7 @@ export const RecommendModal: React.FC<RecommendModalProps> = ({ isOpen, media, u
     setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const recipients = selected
       .map((key) => {
         const [type, id] = key.split(':');
@@ -45,8 +45,13 @@ export const RecommendModal: React.FC<RecommendModalProps> = ({ isOpen, media, u
       .filter(Boolean) as Array<{ id: string; name: string; type: 'user' | 'group' }>;
 
     if (recipients.length === 0) return;
-    SocialService.sendRecommendation(media, recipients, message, userProfile);
-    onSent?.(recipients.length);
+    try {
+      await SocialService.sendRecommendation(media, recipients, message, userProfile);
+      onSent?.(recipients.length);
+    } catch (error) {
+      console.error('Erro ao enviar recomendação:', error);
+      return;
+    }
     setSelected([]);
     setMessage('');
     setQuery('');
@@ -113,7 +118,7 @@ export const RecommendModal: React.FC<RecommendModalProps> = ({ isOpen, media, u
 
         <div className="social-modal__actions">
           <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
-          <button type="button" className="button-primary" disabled={selected.length === 0} onClick={handleSend}>
+          <button type="button" className="button-primary" disabled={selected.length === 0} onClick={() => void handleSend()}>
             <Send /> Enviar para {selected.length || 0}
           </button>
         </div>

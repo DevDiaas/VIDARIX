@@ -86,6 +86,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode, onNavigate, onAddToast
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   const [registrationStep, setRegistrationStep] = useState<RegistrationStep>(1);
   const [registrationDirection, setRegistrationDirection] = useState<'forward' | 'back'>('forward');
@@ -220,6 +221,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode, onNavigate, onAddToast
         setErrorMessage(result.error);
         setRegistrationDirection('back');
         setRegistrationStep(1);
+        return;
+      }
+
+      if (result.requiresEmailConfirmation) {
+        setRegistrationComplete(true);
+        setSuccessMessage(
+          'Conta criada! Enviamos um link de confirmação para o seu e-mail. Confirme antes de entrar.'
+        );
         return;
       }
 
@@ -362,8 +371,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode, onNavigate, onAddToast
 
           <section className="account-onboarding-card" aria-labelledby="account-onboarding-title">
             {errorMessage && <div className="account-message account-message--error">{errorMessage}</div>}
+            {successMessage && <div className="account-message account-message--success"><Check /> {successMessage}</div>}
 
-            {registrationStep === 1 && (
+            {registrationComplete ? (
+              <div className="account-onboarding-step account-onboarding-step--forward">
+                <div className="account-onboarding-step__heading">
+                  <span><Mail /> Confirme seu e-mail</span>
+                  <h2 id="account-onboarding-title">Sua conta foi criada.</h2>
+                  <p>Abra a mensagem enviada para <strong>{email}</strong>, confirme o cadastro e depois entre na VIDARIX.</p>
+                </div>
+                <div className="account-step-panel">
+                  <strong>Suas preferências estão salvas</strong>
+                  <p>Streamings, gêneros e personalização serão sincronizados após a confirmação do e-mail.</p>
+                </div>
+                <button type="button" className="account-primary-button" onClick={() => onNavigate('/entrar')}>
+                  Ir para entrar <ArrowRight />
+                </button>
+              </div>
+            ) : registrationStep === 1 && (
               <div className={`account-onboarding-step account-onboarding-step--${registrationDirection}`}>
                 <div className="account-onboarding-step__heading">
                   <span><User /> Sua conta</span>
@@ -507,7 +532,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode, onNavigate, onAddToast
               </div>
             )}
 
-            <footer className="account-onboarding-footer">
+            {!registrationComplete && <footer className="account-onboarding-footer">
               {registrationStep > 1 ? (
                 <button type="button" className="account-secondary-button" onClick={() => { clearMessages(); setRegistrationDirection('back'); setRegistrationStep((current) => Math.max(1, current - 1) as RegistrationStep); }}>
                   <ArrowLeft /> Voltar
@@ -527,7 +552,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode, onNavigate, onAddToast
                   {isLoading ? <><Loader2 className="is-spinning" /> Criando sua conta...</> : <>Entrar na VIDARIX <ArrowRight /></>}
                 </button>
               )}
-            </footer>
+            </footer>}
           </section>
         </main>
       </div>

@@ -69,14 +69,25 @@ A VIDARIX concentra as principais etapas da descoberta audiovisual:
 
 ### Criação de conta e personalização inicial
 
-Antes de acessar o painel principal, novos usuários passam por uma experiência guiada de quatro etapas:
+Ao criar uma conta, o usuário passa por uma experiência guiada de quatro etapas:
 
 1. criação da conta com nome, usuário, e-mail e senha;
 2. seleção dos serviços de streaming utilizados;
 3. escolha dos gêneros favoritos;
 4. definição da preferência entre filmes e séries, estilo de descoberta e privacidade do perfil.
 
-Essas respostas alimentam o catálogo, a roleta, as recomendações e a comunidade desde o primeiro acesso. Quando o Supabase não está configurado, a mesma experiência funciona em modo local e salva o perfil no navegador.
+Essas respostas alimentam catálogo, roleta, perfil e recomendações. A aplicação continua acessível como visitante, mas login e cadastro permitem sincronizar os dados pelo Supabase.
+
+As rotas de autenticação disponíveis são:
+
+```text
+/entrar
+/criar-conta
+/recuperar-senha
+/redefinir-senha
+```
+
+O frontend utiliza `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Segredos e chaves administrativas nunca devem receber o prefixo `VITE_`.
 
 ### Perfil e preferências
 
@@ -161,13 +172,13 @@ Cada filme ou série possui uma área própria com:
 
 A interface social funciona em modo local para permitir demonstração e desenvolvimento sem depender imediatamente de um backend. Os dados ficam armazenados no navegador.
 
-Para amizade real entre contas diferentes, chat em tempo real e sincronização entre dispositivos, o projeto inclui o arquivo:
+O banco inicial do Supabase está versionado em:
 
 ```text
-supabase/social_schema.sql
+supabase/migrations/20260724130800_vidarix_initial_schema.sql
 ```
 
-Ele contém a estrutura inicial das tabelas sociais e políticas de segurança para Supabase.
+Essa migration cria perfis, preferências, streamings, gêneros, listas, avaliações, histórico da roleta, políticas RLS e o bucket de avatares. Amizades, grupos e mensagens reais devem ser adicionados em migrations posteriores.
 
 ---
 
@@ -197,7 +208,7 @@ src/components/RecommendModal.tsx
 src/components/TitleCommunity.tsx
 src/services/socialService.ts
 src/vidarix-social.css
-supabase/social_schema.sql
+supabase/migrations/20260724130800_vidarix_initial_schema.sql
 ```
 
 ---
@@ -223,4 +234,3 @@ A evolução da área social deve manter:
 - A plataforma não hospeda, transmite ou disponibiliza obras audiovisuais.
 - Dados de filmes e séries são fornecidos pelo TMDB.
 - Informações de disponibilidade em streaming são fornecidas pelo JustWatch através do TMDB.
-#

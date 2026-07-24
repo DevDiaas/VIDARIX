@@ -100,8 +100,24 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
     setActivities(SocialService.getActivities());
   };
 
+
+  const runSocialAction = async (
+    action: () => Promise<unknown>,
+    success?: { title: string; description?: string }
+  ) => {
+    try {
+      await action();
+      refresh();
+      if (success) onAddToast?.(success.title, success.description, 'success');
+    } catch (error: any) {
+      const description = error?.message || 'Confira sua conexão e tente novamente.';
+      onAddToast?.('Não foi possível concluir', description, 'error');
+      console.error('Erro na Comunidade VIDARIX:', error);
+    }
+  };
+
   useEffect(() => {
-    SocialService.initialize(userProfile, mediaPool);
+    void SocialService.initialize(userProfile, mediaPool);
     refresh();
     const handler = () => refresh();
     const navigationHandler = (event: Event) => {
@@ -141,26 +157,31 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
     return !query.trim() || value.includes(query.trim().toLowerCase());
   });
 
-  const handleSendGroupMessage = () => {
+  const handleSendGroupMessage = async () => {
     if (!selectedGroup || !message.trim()) return;
-    SocialService.sendGroupMessage(selectedGroup.id, message, userProfile);
+    const text = message;
     setMessage('');
+    await runSocialAction(() => SocialService.sendGroupMessage(selectedGroup.id, text, userProfile));
   };
 
-  const handleSendDirectMessage = () => {
+  const handleSendDirectMessage = async () => {
     if (!selectedConversation || !message.trim()) return;
-    SocialService.sendDirectMessage(selectedConversation.participant, message, userProfile);
+    const text = message;
     setMessage('');
+    await runSocialAction(() => SocialService.sendDirectMessage(selectedConversation.participant, text, userProfile));
   };
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim()) return;
-    SocialService.createGroup({ name: groupName, description: groupDescription, privacy: groupPrivacy }, userProfile);
+    const input = { name: groupName, description: groupDescription, privacy: groupPrivacy };
+    await runSocialAction(
+      () => SocialService.createGroup(input, userProfile),
+      { title: 'Grupo criado', description: 'Seu novo espaço já está disponível na Comunidade.' }
+    );
     setGroupName('');
     setGroupDescription('');
     setGroupPrivacy('public');
     setShowCreateGroup(false);
-    onAddToast?.('Grupo criado', 'Seu novo espaço já está disponível na Comunidade.', 'success');
   };
 
   const setCommunityTab = (tab: CommunityTab) => {
@@ -224,7 +245,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
                 <article key={request.id} className="social-person-card">
                   <UserAvatar src={request.fromUser.avatar || ''} name={request.fromUser.displayName} size="lg" showBorder />
                   <strong>{request.fromUser.displayName}</strong><span>@{request.fromUser.username}</span><p>{request.fromUser.bio}</p>
-                  <div className="social-person-card__actions"><button type="button" className="button-primary" onClick={() => SocialService.acceptFriendRequest(request.id)}><Check /> Aceitar</button><button type="button" className="button-secondary" onClick={() => SocialService.declineFriendRequest(request.id)}><X /> Recusar</button></div>
+                  <div className="social-person-card__actions"><button type="button" className="button-primary" onClick={() => void runSocialAction(() => SocialService.acceptFriendRequest(request.id), { title: 'Amizade confirmada' })}><Check /> Aceitar</button><button type="button" className="button-secondary" onClick={() => void runSocialAction(() => SocialService.declineFriendRequest(request.id))}><X /> Recusar</button></div>
                 </article>
               ))}
             </div>
@@ -245,7 +266,10 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
                     className="button-primary social-person-card__action-button social-person-card__action-button--primary"
                     onClick={() => {
                       setCommunityTab('messages');
-                      setSelectedConversationId(SocialService.ensureConversation(friend.user));
+                      void runSocialAction(async () => {
+                        const conversationId = await SocialService.ensureConversation(friend.user);
+                        setSelectedConversationId(conversationId);
+                      });
                     }}
                   >
                     <MessageCircle />
@@ -260,7 +284,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
                     <span>Ver perfil</span>
                   </button>
                 </div>
-                <button type="button" className="social-remove-link social-remove-link--friend" onClick={() => SocialService.removeFriend(friend.user.id)}>Remover amizade</button>
+                <button type="button" className="social-remove-link social-remove-link--friend" onClick={() => void runSocialAction(() => SocialService.removeFriend(friend.user.id), { title: 'Amizade removida' })}>Remover amizade</button>
               </article>
             ))}
           </div>
@@ -276,7 +300,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
               <div key={user.id} className="social-person-row">
                 <UserAvatar src={user.avatar || ''} name={user.displayName} size="sm" showBorder />
                 <span><strong>{user.displayName}</strong><small>{user.mutualFriends || 0} amigos em comum</small></span>
-                <button type="button" disabled={pendingOutgoingIds.has(user.id)} onClick={() => SocialService.sendFriendRequest(user, userProfile)}>{pendingOutgoingIds.has(user.id) ? <Check /> : <Plus />}</button>
+                <button type="button" disabled={pendingOutgoingIds.has(user.id)} onClick={() => void runSocialAction(() => SocialService.sendFriendRequest(user, userProfile), { title: 'Pedido enviado', description: `Pedido enviado para ${user.displayName}.` })}>{pendingOutgoingIds.has(user.id) ? <Check /> : <Plus />}</button>
               </div>
             ))}
           </div>
@@ -307,7 +331,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
           <>
             <header className="social-chat-panel__header">
               <div><span className="social-group-avatar"><Users /></span><div><strong>{selectedGroup.name}</strong><span>{selectedGroup.description}</span></div></div>
-              {selectedGroup.memberIds.includes(userProfile.id) ? <button type="button" className="button-secondary" onClick={() => SocialService.leaveGroup(selectedGroup.id, userProfile)}>Sair</button> : <button type="button" className="button-primary" onClick={() => SocialService.joinGroup(selectedGroup.id, userProfile)}>Participar</button>}
+              {selectedGroup.memberIds.includes(userProfile.id) ? <button type="button" className="button-secondary" onClick={() => void runSocialAction(() => SocialService.leaveGroup(selectedGroup.id, userProfile), { title: 'Você saiu do grupo' })}>Sair</button> : <button type="button" className="button-primary" onClick={() => void runSocialAction(() => SocialService.joinGroup(selectedGroup.id, userProfile), { title: 'Você entrou no grupo' })}>Participar</button>}
             </header>
             <div className="social-group-watchlist">
               <div><strong>Lista coletiva</strong><span>{selectedGroup.watchlist.length} títulos indicados</span></div>
@@ -316,14 +340,14 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
             <div className="social-message-stream">
               {selectedGroup.messages.length === 0 ? <div className="social-empty-state compact"><MessageCircle /><strong>Sem mensagens ainda</strong><span>Comece a conversa deste grupo.</span></div> : selectedGroup.messages.map((item) => <div key={item.id} className={`social-message ${item.author.id === userProfile.id ? 'is-mine' : ''}`}><UserAvatar src={item.author.avatar || ''} name={item.author.displayName} size="sm" showBorder /><div><header><strong>{item.author.displayName}</strong><time>{relativeTime(item.createdAt)}</time></header><p>{item.text}</p></div></div>)}
             </div>
-            {selectedGroup.memberIds.includes(userProfile.id) && <div className="social-chat-composer"><input value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && handleSendGroupMessage()} placeholder="Mensagem para o grupo..." /><button type="button" onClick={handleSendGroupMessage}><Send /></button></div>}
+            {selectedGroup.memberIds.includes(userProfile.id) && <div className="social-chat-composer"><input value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void handleSendGroupMessage()} placeholder="Mensagem para o grupo..." /><button type="button" onClick={() => void handleSendGroupMessage()}><Send /></button></div>}
           </>
         ) : <div className="social-empty-state"><Users /><strong>Escolha um grupo</strong><span>Abra uma sala para acompanhar mensagens e listas coletivas.</span></div>}
       </section>
 
       {showCreateGroup && (
         <div className="social-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setShowCreateGroup(false)}>
-          <section className="social-modal compact-modal"><button type="button" className="social-modal__close" onClick={() => setShowCreateGroup(false)}><X /></button><div className="social-modal__header"><span className="social-eyebrow"><Users /> Novo grupo</span><h2>Criar espaço de cinema</h2><p>Organize conversas, listas e roletas coletivas.</p></div><label className="social-form-field"><span>Nome</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Ex.: Terror de Sexta" /></label><label className="social-form-field"><span>Descrição</span><textarea value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} placeholder="Qual é o objetivo do grupo?" /></label><div className="social-choice-row"><button type="button" className={groupPrivacy === 'public' ? 'is-active' : ''} onClick={() => setGroupPrivacy('public')}><Globe2 /> Público</button><button type="button" className={groupPrivacy === 'private' ? 'is-active' : ''} onClick={() => setGroupPrivacy('private')}><Lock /> Privado</button></div><div className="social-modal__actions"><button type="button" className="button-secondary" onClick={() => setShowCreateGroup(false)}>Cancelar</button><button type="button" className="button-primary" onClick={handleCreateGroup} disabled={!groupName.trim()}><Plus /> Criar grupo</button></div></section>
+          <section className="social-modal compact-modal"><button type="button" className="social-modal__close" onClick={() => setShowCreateGroup(false)}><X /></button><div className="social-modal__header"><span className="social-eyebrow"><Users /> Novo grupo</span><h2>Criar espaço de cinema</h2><p>Organize conversas, listas e roletas coletivas.</p></div><label className="social-form-field"><span>Nome</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Ex.: Terror de Sexta" /></label><label className="social-form-field"><span>Descrição</span><textarea value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} placeholder="Qual é o objetivo do grupo?" /></label><div className="social-choice-row"><button type="button" className={groupPrivacy === 'public' ? 'is-active' : ''} onClick={() => setGroupPrivacy('public')}><Globe2 /> Público</button><button type="button" className={groupPrivacy === 'private' ? 'is-active' : ''} onClick={() => setGroupPrivacy('private')}><Lock /> Privado</button></div><div className="social-modal__actions"><button type="button" className="button-secondary" onClick={() => setShowCreateGroup(false)}>Cancelar</button><button type="button" className="button-primary" onClick={() => void handleCreateGroup()} disabled={!groupName.trim()}><Plus /> Criar grupo</button></div></section>
         </div>
       )}
     </div>
@@ -336,7 +360,7 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
         <div className="social-chat-list">{conversations.map((conversation) => <button type="button" key={conversation.id} className={selectedConversationId === conversation.id ? 'is-active' : ''} onClick={() => setSelectedConversationId(conversation.id)}><UserAvatar src={conversation.participant.avatar || ''} name={conversation.participant.displayName} size="sm" showBorder /><span><strong>{conversation.participant.displayName}</strong><small>{conversation.messages.at(-1)?.text || 'Nova conversa'}</small></span>{conversation.participant.isOnline && <i />}</button>)}</div>
       </aside>
       <section className="social-chat-panel">
-        {selectedConversation ? <><header className="social-chat-panel__header"><div><UserAvatar src={selectedConversation.participant.avatar || ''} name={selectedConversation.participant.displayName} size="md" showBorder /><div><strong>{selectedConversation.participant.displayName}</strong><span>{selectedConversation.participant.isOnline ? 'Online agora' : `@${selectedConversation.participant.username}`}</span></div></div></header><div className="social-message-stream">{selectedConversation.messages.map((item) => <div key={item.id} className={`social-message ${item.author.id === userProfile.id ? 'is-mine' : ''}`}><UserAvatar src={item.author.avatar || ''} name={item.author.displayName} size="sm" showBorder /><div><header><strong>{item.author.displayName}</strong><time>{relativeTime(item.createdAt)}</time></header><p>{item.text}</p>{item.media && <MediaMiniCard media={item.media} onClick={() => onSelectMedia(item.media!)} />}</div></div>)}</div><div className="social-chat-composer"><input value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && handleSendDirectMessage()} placeholder="Escreva uma mensagem..." /><button type="button" onClick={handleSendDirectMessage}><Send /></button></div></> : <div className="social-empty-state"><MessageCircle /><strong>Escolha uma conversa</strong><span>Troque recomendações e planeje a próxima sessão.</span></div>}
+        {selectedConversation ? <><header className="social-chat-panel__header"><div><UserAvatar src={selectedConversation.participant.avatar || ''} name={selectedConversation.participant.displayName} size="md" showBorder /><div><strong>{selectedConversation.participant.displayName}</strong><span>{selectedConversation.participant.isOnline ? 'Online agora' : `@${selectedConversation.participant.username}`}</span></div></div></header><div className="social-message-stream">{selectedConversation.messages.map((item) => <div key={item.id} className={`social-message ${item.author.id === userProfile.id ? 'is-mine' : ''}`}><UserAvatar src={item.author.avatar || ''} name={item.author.displayName} size="sm" showBorder /><div><header><strong>{item.author.displayName}</strong><time>{relativeTime(item.createdAt)}</time></header><p>{item.text}</p>{item.media && <MediaMiniCard media={item.media} onClick={() => onSelectMedia(item.media!)} />}</div></div>)}</div><div className="social-chat-composer"><input value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void handleSendDirectMessage()} placeholder="Escreva uma mensagem..." /><button type="button" onClick={() => void handleSendDirectMessage()}><Send /></button></div></> : <div className="social-empty-state"><MessageCircle /><strong>Escolha uma conversa</strong><span>Troque recomendações e planeje a próxima sessão.</span></div>}
       </section>
     </div>
   );
@@ -368,11 +392,11 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
                   <MediaMiniCard media={item.media} onClick={() => onSelectMedia(item.media)} />
                   <div className="social-recommendation-actions">
                     <button type="button" className="button-primary" onClick={() => {
-                      SocialService.updateRecommendationStatus(item.id, 'saved');
+                      void runSocialAction(() => SocialService.updateRecommendationStatus(item.id, 'saved'));
                       onAddToWatchlist?.(item.media);
                       onAddToast?.('Adicionado à lista', item.media.title || item.media.name, 'success');
                     }}>Adicionar à lista</button>
-                    <button type="button" className="button-secondary" onClick={() => SocialService.updateRecommendationStatus(item.id, 'dismissed')}>Agora não</button>
+                    <button type="button" className="button-secondary" onClick={() => void runSocialAction(() => SocialService.updateRecommendationStatus(item.id, 'dismissed'))}>Agora não</button>
                   </div>
                 </div>
               </article>
@@ -433,7 +457,15 @@ export const CommunityPage: React.FC<CommunityPageProps> = ({ userProfile, media
             </div>
             <div className="social-metrics"><div><strong>{profilePreview.watchedCount || 0}</strong><span>assistidos</span></div><div><strong>{profilePreview.mutualFriends || 0}</strong><span>em comum</span></div><div><strong>{profilePreview.recentWatched?.length || 0}</strong><span>recentes</span></div></div>
             <div className="social-friend-profile__watched"><h3>Assistidos recentemente</h3><div>{profilePreview.recentWatched?.length ? profilePreview.recentWatched.map((media) => <button type="button" key={`${media.media_type}-${media.id}`} onClick={() => { setProfilePreview(null); onSelectMedia(media); }}><img src={getPosterUrl(media.poster_path, 'w342')} alt={media.title || media.name} /><span>{media.title || media.name}</span></button>) : <div className="social-empty-state compact"><Eye /><strong>Nenhum título público</strong><span>Este usuário ainda não compartilhou sua atividade.</span></div>}</div></div>
-            <div className="social-modal__actions"><button type="button" className="button-secondary" onClick={() => setProfilePreview(null)}>Fechar</button><button type="button" className="button-primary" onClick={() => { setProfilePreview(null); setCommunityTab('messages'); setSelectedConversationId(SocialService.ensureConversation(profilePreview)); }}><MessageCircle /> Conversar</button></div>
+            <div className="social-modal__actions"><button type="button" className="button-secondary" onClick={() => setProfilePreview(null)}>Fechar</button><button type="button" className="button-primary" onClick={() => {
+              const friend = profilePreview;
+              setProfilePreview(null);
+              setCommunityTab('messages');
+              void runSocialAction(async () => {
+                const conversationId = await SocialService.ensureConversation(friend);
+                setSelectedConversationId(conversationId);
+              });
+            }}><MessageCircle /> Conversar</button></div>
           </section>
         </div>
       )}

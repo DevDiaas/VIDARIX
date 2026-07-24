@@ -1,5 +1,5 @@
-const CACHE_NAME = 'vidarix-v23';
-const IMAGE_CACHE_NAME = 'vidarix-images-v23';
+const CACHE_NAME = 'vidarix-v25';
+const IMAGE_CACHE_NAME = 'vidarix-images-v25';
 
 const ASSETS_TO_CACHE = [
   '/',

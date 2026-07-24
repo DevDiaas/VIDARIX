@@ -8,8 +8,10 @@ import { NotificationPanel } from './NotificationPanel';
 interface HeaderProps {
   currentPath: string;
   userProfile: UserProfile;
+  isAuthenticated: boolean;
   onNavigate: (path: string) => void;
   onOpenSearch: () => void;
+  onLogout: () => void | Promise<void>;
   notifications?: SocialNotification[];
   onMarkNotificationRead?: (id: string) => void;
   onMarkAllNotificationsRead?: () => void;
@@ -18,8 +20,10 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentPath,
   userProfile,
+  isAuthenticated,
   onNavigate,
   onOpenSearch,
+  onLogout,
   notifications = [],
   onMarkNotificationRead = () => {},
   onMarkAllNotificationsRead = () => {}
@@ -45,8 +49,6 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   const navigate = (path: string) => {
-    const cleanPath = path.split('?')[0];
-    if (window.location.pathname !== cleanPath) window.history.pushState({}, '', path);
     onNavigate(path);
     setNotificationsOpen(false);
     setProfileMenuOpen(false);
@@ -63,7 +65,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         <nav className="vidarix-header__nav" aria-label="Navegação principal">
           {navItems.map(({ label, path, icon: Icon }) => {
-            const active = path === '/' ? (currentPath === '/' || currentPath === '/inicio') : currentPath.startsWith(path);
+            const active = path === '/'
+              ? currentPath === '/' || currentPath === '/inicio'
+              : currentPath.startsWith(path);
+
             return (
               <button
                 key={path}
@@ -117,14 +122,14 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
-              aria-label="Abrir menu do perfil"
+              aria-label={isAuthenticated ? 'Abrir menu da conta' : 'Entrar ou criar conta'}
             >
               <UserAvatar
                 src={userProfile.photoURL || userProfile.avatar}
                 name={userProfile.displayName || userProfile.fullName || userProfile.name}
                 size="sm"
                 showBorder
-                borderColor="border-[#F43F5E]"
+                borderColor={isAuthenticated ? 'border-[#8B5CF6]' : 'border-white/20'}
               />
             </button>
 
@@ -132,7 +137,9 @@ export const Header: React.FC<HeaderProps> = ({
               isOpen={profileMenuOpen}
               onClose={() => setProfileMenuOpen(false)}
               userProfile={userProfile}
-              onNavigate={onNavigate}
+              isAuthenticated={isAuthenticated}
+              onNavigate={navigate}
+              onLogout={onLogout}
             />
           </div>
         </div>
