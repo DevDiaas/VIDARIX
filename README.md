@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Plataforma brasileira de descoberta de filmes e séries com catálogo, roleta personalizada, listas, avaliações e recursos sociais em tempo real.
+  Plataforma de descoberta de filmes e séries com catálogo, roleta personalizada, listas, avaliações e recursos sociais em tempo real.
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 A **VIDARIX** foi criada para resolver um problema comum: gastar mais tempo escolhendo o que assistir do que aproveitando o conteúdo.
 
-A plataforma reúne descoberta de filmes e séries, disponibilidade nos streamings brasileiros, listas pessoais, avaliações, recomendações, roleta cinematográfica e uma comunidade integrada.
+A plataforma reúne descoberta de filmes e séries, disponibilidade nos streamings, listas pessoais, avaliações, recomendações, roleta cinematográfica e uma comunidade integrada.
 
 A VIDARIX não reproduz nem hospeda conteúdo audiovisual. Seu objetivo é ajudar o usuário a **descobrir, decidir, organizar e compartilhar** o que pretende assistir.
 
